@@ -146,9 +146,17 @@ export default function AskPage() {
 /** The model writes light markdown (bold, bullets). Render just that, as text nodes: no HTML injection. */
 function Answer({ text }: { text: string }) {
   const inline = (line: string) =>
-    line.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-      part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : <span key={i}>{part}</span>,
-    );
+    line.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\(https?:\/\/[^)\s]+\))/g).map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{part.slice(2, -2)}</strong>;
+      const link = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
+      if (link)
+        return (
+          <a key={i} href={link[2]} target="_blank" rel="noreferrer" className="text-brand-700 underline">
+            {link[1]}
+          </a>
+        );
+      return <span key={i}>{part}</span>;
+    });
   const blocks: { list: boolean; lines: string[] }[] = [];
   for (const raw of (text || "").split("\n")) {
     const line = raw.trimEnd();
