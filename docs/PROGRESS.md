@@ -11,13 +11,13 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 | Repo and GitHub | ✅ https://github.com/DhrubaAgarwalla/afterloss |
 | Rules engine (RBI Directions 2025) + tests | ✅ 36 tests pass; 27 citations verified against the hashed RBI text |
 | Discovery (statement → leads) + tests | ✅ 16/16 planted leads found, 0 false positives |
-| Privacy (Aadhaar masking, PII firewall) | 🔄 Next |
-| Forms and packs (RBI Annex I-A to I-E) + tests | ⏳ |
-| Infrastructure (SAM template) | ⏳ |
-| Lambda handlers | ⏳ |
-| Frontend (React, EN/HI) | ⏳ |
-| Deploy to AWS | ⏳ Waiting for you: `aws login --profile afterloss` (see `docs/SETUP.md`) |
-| Assistant (Nova 2 Lite + Web Grounding) | ⏳ |
+| Privacy (Aadhaar masking, PII firewall) | ✅ |
+| Forms and packs (RBI Annex I-A to I-E) + tests | ✅ 7-page pack, letters, Ombudsman draft |
+| Infrastructure (SAM template) | ✅ stack `afterloss` live in ap-south-1 |
+| Lambda handlers | ✅ 18/18 live end-to-end checks |
+| Frontend (React, EN/HI) | 🔄 In progress |
+| Deploy to AWS | ✅ Backend · ⏳ website (S3 + CloudFront) |
+| Assistant (Nova 2 Lite + Web Grounding) | ✅ live, with citations and PII firewall |
 | Demo data, README, video script | ⏳ |
 
 ## Needs from you
@@ -30,6 +30,29 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 ---
 
 ## Log
+
+### 2026-09-18 20:35 IST: Backend live on AWS, full flow passes end to end
+**What**
+- **Deployed** stack `afterloss` (ap-south-1) with SAM (`scripts/deploy-backend.ps1`):
+  - Cognito and HTTP API (JWT authorizer, throttled)
+  - 5 Lambdas: api, scan, pack, assistant, clock
+  - DynamoDB (single table + GSI1, point-in-time recovery), S3 (private, TLS-only)
+  - Step Functions claim clock
+  - Verified Permissions policy store with 7 Cedar policies (STRICT schema)
+  - IAM with only the permissions each function needs
+- **Service layer** (`afterloss/app/service.py`) and **handlers** (`src/handlers/*`) for cases, family and people, statement scan → leads, lead → asset → route, uploads through presigned URLs, masked previews, packs, clock start/answer, search kit and findings.
+- **Claim clock state machine** (`statemachines/claim_clock.asl.json`): schedule → day 10/14 reminders → day 15 callback question → settled, or late (compensation + bank letter PDF) → 30-day wait → resolved, or Ombudsman draft PDF. Demo speed compresses days into seconds.
+- **Assistant:** Nova 2 Lite for explanations; Nova Web Grounding for web answers with citations; PII firewall (regex + checksum + known names + Comprehend); daily quota.
+- **Cedar:** policies in `backend/policies/` validated with `cedarpy`; a 28-case matrix matches the app's local authorization; a test keeps `template.yaml` in sync.
+- **Tests:** 86 unit tests plus **18/18 live end-to-end checks** (`scripts/e2e.py`): 16 leads in 4.1 s; SIMPLIFIED route; Aadhaar masked through Textract; helper denied originals (403); 7-page pack in 3.5 s; clock → late letter (₹166.58 at 9.5%) → Ombudsman draft; grounded answer with citations and the PAN and name removed.
+- `docs/LEARNINGS.md` started.
+
+**Why**
+- Ship It is judged on a live, working architecture, so the whole backend flow had to run on AWS, not just in tests.
+
+**Left**
+- Frontend screens (claims, family, documents, ask), Hindi strings, website hosting (S3 + CloudFront), README, demo script, video.
+- From you: notification email (turns on the budget alert, error alarm and SES reminders).
 
 ### 2026-09-18 18:23 IST: Discovery engine (statement → leads)
 **What**

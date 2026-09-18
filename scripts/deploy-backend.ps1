@@ -1,0 +1,22 @@
+# Deploys the backend stack with SAM using the `aws login` session of the "afterloss" profile.
+param([string]$Profile = "afterloss", [string]$Region = "ap-south-1", [string]$Stack = "afterloss", [string]$AlertEmail = "")
+$ErrorActionPreference = "Stop"
+$root = Split-Path -Parent $PSScriptRoot
+$aws = "C:\Program Files\Amazon\AWSCLIV2\aws.exe"
+$sam = "C:\Program Files\Amazon\AWSSAMCLI\bin\sam.cmd"
+# SAM reads plain env credentials; export short-lived ones from the aws login session
+& $aws configure export-credentials --profile $Profile --format powershell | ForEach-Object { Invoke-Expression $_ }
+$env:AWS_REGION = $Region; $env:AWS_DEFAULT_REGION = $Region; $env:SAM_CLI_TELEMETRY = "0"
+Copy-Item "$root\config\brand.json" "$root\backend\src\afterloss\brand.json" -Force
+if (-not (Test-Path "$root\backend\layer\python\reportlab")) { & "C:\Users\dhrub\.afterloss\venv\Scripts\python.exe" "$root\backend\scripts\build_layer.py" }
+Push-Location "$root\backend"
+try {
+  $samArgs = @("deploy", "--template-file", "template.yaml", "--stack-name", $Stack, "--region", $Region,
+    "--capabilities", "CAPABILITY_IAM", "CAPABILITY_AUTO_EXPAND", "--resolve-s3",
+    "--no-confirm-changeset", "--no-fail-on-empty-changeset")
+  if ($AlertEmail) { $samArgs += @("--parameter-overrides", "AlertEmail=$AlertEmail") }
+  & $sam @samArgs
+  if ($LASTEXITCODE -ne 0) { throw "sam deploy failed ($LASTEXITCODE)" }
+  & $aws cloudformation describe-stacks --stack-name $Stack --region $Region --profile $Profile `
+    --query "Stacks[0].Outputs" --output json | Set-Content -Encoding utf8 "$root\backend\stack-outputs.json"
+} finally { Pop-Location }
