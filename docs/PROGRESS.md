@@ -10,7 +10,8 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 | Docs (hackathon, PRD, architecture, setup) | ✅ Done |
 | Repo and GitHub | ✅ https://github.com/DhrubaAgarwalla/afterloss |
 | Rules engine (RBI Directions 2025) + tests | ✅ 36 tests pass; 27 citations verified against the hashed RBI text |
-| Discovery (statement → leads) + tests | 🔄 Next |
+| Discovery (statement → leads) + tests | ✅ 16/16 planted leads found, 0 false positives |
+| Privacy (Aadhaar masking, PII firewall) | 🔄 Next |
 | Forms and packs (RBI Annex I-A to I-E) + tests | ⏳ |
 | Infrastructure (SAM template) | ⏳ |
 | Lambda handlers | ⏳ |
@@ -30,7 +31,24 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 
 ## Log
 
-### 2026-09-18 18:40 IST: Rules engine, with every citation proven
+### 2026-09-18 18:23 IST: Discovery engine (statement → leads)
+**What**
+- `discovery/statement.py`: parsers for **CSV**, **digital PDF** (pdfplumber; maps amounts to the Withdrawal/Deposit/Balance columns by x-position; ignores watermarks; reads bank, holder and last 4 digits from the header only) and **OCR text lines** (fallback for scans, fixes direction from the running balance).
+- `discovery/detectors.py`: ordered, explainable rules → **leads**, each with evidence lines, count, total, confidence, next steps and which official portals to try. Types: shares (dividends), mutual funds (SIP/AMC/CAMS/KFintech/BSE StAR), life and health insurance, **PMJJBY/PMSBY**, NPS/PPF/APY/post office, FD/RD (including other banks such as co-ops), employer (PF, gratuity, group insurance), broker/demat, loans and credit cards.
+- `discovery/data/dictionary.json`: 75 listed companies (with RTA), 26 AMCs, 22 insurers, 16 lenders, 16 brokers, 28 banks, co-op markers. Fuzzy matching with `rapidfuzz`.
+- `discovery/names.py`: name variants for official searches (R K SHARMA, SHARMA RAMESH KUMAR, K RAMESH ↔ RAMESH K).
+- `discovery/searchkit.py`: prefilled kits for the unified portal, UDGAM, MITRA, IEPF, insurers, EPFO, DigiLocker and income tax (AIS). Each is marked if it only shows dormant money.
+- `samples/make_statement.py` → `samples/data/sample_statement.{pdf,csv}`: a **synthetic** 12-month statement (watermarked SAMPLE) with 16 planted assets and a lot of noise.
+- Tests (8 new): both formats find all 16 planted leads with **zero false positives**; LIC Housing loan ≠ LIC insurance; dates and amounts; OCR fallback; name variants; search kit. **44/44 pass.**
+
+**Why**
+- UDGAM, MITRA and IEPF only show money dormant for 7–10+ years, so a recent death's assets must be found from the family's own documents.
+- The PMJJBY ₹436 debit is a good demo moment: ₹2 lakh of life cover families usually never hear about.
+
+**Left**
+- Privacy (Aadhaar masking, PII firewall), forms and packs, infrastructure, handlers, frontend, deploy.
+
+### 2026-09-18 18:15 IST: Rules engine, with every citation proven
 **What**
 - Saved RBI's official notification (RBI/2025-26/82) in `sources/rbi-2025-deceased-claims/` as HTML plus a clean text copy, and recorded its SHA-256 in `backend/src/afterloss/rules/data/sources.json`.
 - Encoded the rules as data (`rules/data/rbi_deceased_2025.json`):
