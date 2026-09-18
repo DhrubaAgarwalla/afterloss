@@ -1,0 +1,140 @@
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { BadgeCheck, Globe2, Lightbulb, SendHorizonal, ShieldCheck } from "lucide-react";
+import { api } from "../lib/api";
+import { useCase } from "../lib/case";
+import { Card, Chip, inputCls } from "../components/ui";
+
+type Msg = { role: "user" | "bot"; text: string; citations?: any[]; removed?: any[]; askedAs?: string; mode?: string; fallback?: boolean };
+
+export default function AskPage() {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language === "hi" ? "hi" : "en";
+  const { caseId, view } = useCase();
+  const [params] = useSearchParams();
+  const assetId = params.get("asset") || "";
+  const asset = (view.assets as any[]).find((a) => a.assetId === assetId);
+  const [mode, setMode] = useState<"explain" | "web">(asset ? "explain" : "web");
+  const [q, setQ] = useState("");
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [busy, setBusy] = useState(false);
+  const end = useRef<HTMLDivElement>(null);
+
+  useEffect(() => end.current?.scrollIntoView({ behavior: "smooth" }), [msgs, busy]);
+
+  const examples =
+    mode === "web"
+      ? [
+          t("ask.ex1", "How do we claim unpaid dividends from IEPF?"),
+          t("ask.ex2", "What is the current RBI Bank Rate?"),
+          t("ask.ex3", "How does a nominee claim EPF, pension and EDLI after a death?"),
+        ]
+      : [
+          t("ask.ex4", "Why is this the right route for this account?"),
+          t("ask.ex5", "Who should sign the no-objection letter?"),
+          t("ask.ex6", "What happens if the bank is late?"),
+        ];
+
+  async function send(text: string) {
+    if (!text.trim()) return;
+    setMsgs((m) => [...m, { role: "user", text }]);
+    setQ("");
+    setBusy(true);
+    try {
+      const r: any = await api("POST", "/assistant", { caseId, assetId: mode === "explain" ? assetId : "", question: text, mode, lang });
+      setMsgs((m) => [...m, { role: "bot", text: r.answer, citations: r.citations, removed: r.removed, askedAs: r.askedAs, mode: r.mode, fallback: r.fallback }]);
+    } catch (e: any) {
+      setMsgs((m) => [...m, { role: "bot", text: e?.message ?? String(e) }]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-[70vh] flex-col gap-4">
+      <div>
+        <h1 className="text-2xl font-semibold">{t("ask.title", "Ask")}</h1>
+        <p className="text-sm text-muted">
+          {t("ask.sub", "Amazon Nova 2 Lite on AWS. It explains and searches; it never changes your routes, dates or amounts.")}
+        </p>
+      </div>
+      <div className="flex gap-2 rounded-xl bg-stone-100 p-1 text-sm">
+        <button onClick={() => setMode("explain")} className={`focus-ring flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 font-medium ${mode === "explain" ? "bg-white shadow-sm" : "text-muted"}`}>
+          <Lightbulb className="size-4" /> {t("ask.explain", "Explain")}
+          {asset && mode === "explain" && <span className="truncate text-xs text-soft">· {asset.institution}</span>}
+        </button>
+        <button onClick={() => setMode("web")} className={`focus-ring flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 font-medium ${mode === "web" ? "bg-white shadow-sm" : "text-muted"}`}>
+          <Globe2 className="size-4" /> {t("ask.web", "Search the web")}
+        </button>
+      </div>
+      {mode === "web" && (
+        <p className="flex items-start gap-2 rounded-xl bg-brand-50 px-3 py-2 text-xs text-brand-900">
+          <ShieldCheck className="mt-0.5 size-4 shrink-0" />
+          {t("ask.privacy", "Before searching, we remove names, PAN, Aadhaar, phone and account numbers. Web search runs inside AWS (Nova Web Grounding) and every answer shows its sources.")}
+        </p>
+      )}
+
+      <div className="flex-1 space-y-3">
+        {msgs.length === 0 && (
+          <div className="flex flex-wrap gap-2">
+            {examples.map((e) => (
+              <button key={e} onClick={() => send(e)} className="focus-ring rounded-full bg-white px-3 py-1.5 text-sm ring-1 ring-line hover:ring-brand-200">
+                {e}
+              </button>
+            ))}
+          </div>
+        )}
+        {msgs.map((m, i) =>
+          m.role === "user" ? (
+            <div key={i} className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-brand-700 px-4 py-2.5 text-white">
+              {m.text}
+            </div>
+          ) : (
+            <Card key={i} className="max-w-[92%] space-y-3">
+              {m.removed && m.removed.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                  <ShieldCheck className="size-3.5 text-brand-700" /> {t("ask.removed", "Removed before sending:")}
+                  {[...new Set(m.removed.map((r: any) => r.type))].map((ty) => (
+                    <Chip key={ty} tone="brand">
+                      {ty}
+                    </Chip>
+                  ))}
+                </div>
+              )}
+              <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{m.text}</p>
+              {m.fallback && <Chip tone="amber">{t("ask.fallback", "AI unavailable: showing the rule text")}</Chip>}
+              {m.citations && m.citations.length > 0 && (
+                <div className="space-y-1.5 border-t border-line pt-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-soft">{t("ask.sources", "Sources")}</p>
+                  {m.citations.map((c: any) => (
+                    <a key={c.url} href={c.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-brand-700 hover:underline">
+                      {c.official ? <BadgeCheck className="size-4 shrink-0 text-green-700" /> : <Globe2 className="size-4 shrink-0 text-stone-400" />}
+                      <span className="truncate">{c.domain}</span>
+                      {c.official ? <Chip tone="green">{t("ask.official", "official")}</Chip> : <Chip>{t("ask.unverified", "check it")}</Chip>}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </Card>
+          ),
+        )}
+        {busy && <Card className="max-w-[60%] text-sm text-muted pulse-soft">{mode === "web" ? t("ask.searching", "Searching official sources…") : t("ask.thinking", "Thinking…")}</Card>}
+        <div ref={end} />
+      </div>
+
+      <form
+        onSubmit={(e: FormEvent) => {
+          e.preventDefault();
+          send(q);
+        }}
+        className="sticky bottom-20 flex gap-2 rounded-2xl bg-white p-2 ring-1 ring-line md:bottom-4"
+      >
+        <input className={inputCls + " border-0"} placeholder={t("ask.placeholder", "Type your question…")} value={q} onChange={(e) => setQ(e.target.value)} />
+        <button type="submit" disabled={busy || !q.trim()} className="focus-ring flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-700 text-white disabled:opacity-50" aria-label="Send">
+          <SendHorizonal className="size-5" />
+        </button>
+      </form>
+    </div>
+  );
+}

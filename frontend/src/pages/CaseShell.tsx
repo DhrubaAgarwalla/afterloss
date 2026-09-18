@@ -43,7 +43,7 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
               {view ? `${t("cases.inMemory", "In memory of")} ${view.case.deceasedName}` : "…"}
             </p>
           </div>
-          {role && <Chip tone={role === "helper" ? "amber" : "brand"}>{t(`role.${role}`, role)}</Chip>}
+          {role && <Chip tone={role === "helper" ? "amber" : "brand"}>{t(`role.${role}`, { defaultValue: role })}</Chip>}
           {view?.case?.secondsPerDay < 86400 && <Chip tone="amber">{t("cases.demo", "Demo speed")}</Chip>}
           <LangToggle />
           <button className="focus-ring hidden rounded-lg p-1.5 text-muted hover:bg-stone-100 sm:block" onClick={onSignOut} aria-label={t("signOut", "Sign out")}>

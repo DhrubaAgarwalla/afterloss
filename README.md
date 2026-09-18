@@ -2,42 +2,94 @@
 
 **Find, claim and follow up on what a loved one left behind.** Built during the WeMakeDevs × AWS **First Commit** hackathon (Bharat Builds Tour), 17–20 Sep 2026.
 
-> Work in progress: this repo is being built during the event. See [`docs/PROGRESS.md`](docs/PROGRESS.md) for the live log.
+**Live app:** https://d30k8rjq3ol5ah.cloudfront.net · **Progress log:** [`docs/PROGRESS.md`](docs/PROGRESS.md)
 
 ## The problem
 
-When a parent dies in India, the family doesn't know what assets exist, fills the same details into many forms, and waits on banks with no idea of their rights.
+When a parent dies in India, the family (often a student) faces three problems:
+- They don't know what exists: shares, mutual funds, an old FD, a PMJJBY cover.
+- They fill the same details into form after form.
+- They wait on banks with no idea of their rights.
 
-Since RBI's **Settlement of Claims in respect of Deceased Customers of Banks Directions, 2025**, the process is standard:
+Since RBI's **Settlement of Claims in respect of Deceased Customers of Banks Directions, 2025** (RBI/2025-26/82), the rules are standard:
 - fixed claim forms (Annex I-A to I-H)
-- no court papers needed below ₹15 lakh (₹5 lakh at co-operative banks)
-- settlement within **15 days** of complete documents
-- interest at **Bank Rate + 4%** if the bank is late
+- no court papers needed up to ₹15 lakh (₹5 lakh at co-op banks) (para 10(a))
+- settlement within **15 days** of complete documents (para 31)
+- **interest at Bank Rate + 4%** if the bank is late (para 33)
 
-Most families never hear about any of it.
+Most families never hear about any of this.
 
 ## What it does
 
-1. **Find.** It reads the family's own documents (bank statements first) and finds leads: shares from dividend credits, mutual funds from SIPs, insurance from premiums, loans from EMIs. It also prepares official searches (the "Your Money, Your Right" portal, RBI UDGAM, SEBI MITRA, IEPF) with the right inputs.
-2. **Fill.** It picks the right claim route for each asset, citing the RBI paragraph, and produces a print-ready PDF pack: RBI standard forms pre-filled, Aadhaar masked, and signature boxes.
-3. **File and follow up.** It starts the 15-day clock when the bank confirms the documents are complete, sends reminders, calculates compensation if the bank is late, and drafts the letter and the RBI Ombudsman complaint.
-4. **Ask.** An assistant on Amazon Nova 2 Lite explains every step in English or Hindi, and answers "where/how" questions with web search and citations.
+| Step | What happens | How |
+|---|---|---|
+| **Find** | Upload a bank statement. Dividends reveal shares, SIPs reveal mutual funds, premiums reveal insurance, and a ₹436 debit reveals ₹2 lakh of PMJJBY cover. | pdfplumber/CSV parser + explainable detectors + fuzzy dictionaries; Textract for scans |
+| **Search** | Prefilled kits for the official portals (unified portal, RBI UDGAM, SEBI MITRA, IEPF, insurers, EPFO) with name variants. They mostly find money dormant 7–10+ years, so we're honest about that. | Search-kit generator |
+| **Route** | Each asset gets its route (nominee / simplified / above threshold / will / dispute / locker) with the **exact RBI paragraph quoted**. | Rules stored as data, each quote checked against the hashed RBI text |
+| **Fill** | One tap produces a claim pack: RBI Annex forms pre-filled from the family profile, Aadhaar masked on ID copies, signature boxes, and a checklist. | reportlab + pypdf; Textract + Comprehend for masking |
+| **Follow up** | Upload the bank's acknowledgement and a 15-day clock starts. Reminders on day 10 and 14. If late, compensation is calculated and the letter to the bank drafted. After 30 more days, an RBI Ombudsman draft. | Step Functions with callback tokens |
+| **Ask** | "Explain in simple words" (English/Hindi), or search the web with citations. Personal data is stripped first. | Bedrock **Amazon Nova 2 Lite** + **Nova Web Grounding** |
+| **Family** | Lead, heirs and helpers. Helpers see masked previews only and can never download originals. | **Amazon Verified Permissions (Cedar)** `forbid` policy |
 
-## Built on AWS
+## Architecture
 
-Cognito · API Gateway · Lambda · DynamoDB · S3 · CloudFront · Step Functions · Verified Permissions (Cedar) · Textract · Comprehend · Bedrock (Amazon Nova 2 Lite + Web Grounding) · SES · CloudWatch. Everything is defined in one SAM template.
+```mermaid
+flowchart LR
+  UI[React PWA, EN/HI] --> CF[CloudFront + S3]
+  UI --> COG[Cognito]
+  UI -- JWT --> API[API Gateway HTTP API]
+  API --> L1[Lambda api] & L2[Lambda scan] & L3[Lambda pack] & L4[Lambda assistant]
+  L1 & L2 & L3 & L4 --> AVP[Verified Permissions / Cedar]
+  L1 & L2 & L3 --> DDB[(DynamoDB)]
+  UI -- presigned --> S3[(S3 docs)]
+  L2 --> TX[Textract] & CMP[Comprehend]
+  L1 --> SFN[Step Functions claim clock] --> L5[Lambda clock] --> SES[SES]
+  L4 --> BR[Bedrock Nova 2 Lite + Web Grounding]
+```
+
+Full details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): the data model, API, security, cost, and the choices we made (e.g. no OpenSearch Serverless, no SMS until DLT registration).
+
+## Proof it works
+
+- `backend/tests`: **86 unit tests**. They cover:
+  - every RBI route, including both threshold boundaries
+  - compensation maths: ₹3.2 lakh, 10 days late at 9.5% = ₹832.88
+  - discovery: all 16 planted assets found, no false positives
+  - forms, masking, the PII firewall
+  - Cedar policies validated with `cedarpy`, with a 28-case decision matrix
+- `python -m afterloss.rules.verify` re-hashes the RBI source and confirms **27/27 quotes appear word for word**.
+- `scripts/e2e.py`: **18/18 live checks** on AWS (scan, route, pack, masking, Cedar denials, full clock → letter → Ombudsman draft, grounded answer with citations).
+
+## Run it
+
+```powershell
+# backend (needs `aws login --profile afterloss`)
+powershell -File scripts/deploy-backend.ps1
+# website
+powershell -File scripts/deploy-web.ps1
+# local dev against the deployed API
+npm --prefix frontend run dev
+# tests
+cd backend; $env:PYTHONPATH="src"; python -m pytest tests
+```
+
+Android later: `cd frontend; npx cap add android; npx cap sync; npx cap open android`.
 
 ## Docs
 
-- [Product requirements](docs/PRD.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Hackathon rules and checklist](docs/HACKATHON.md)
-- [Setup](docs/SETUP.md)
-- [Progress log](docs/PROGRESS.md)
+[PRD](docs/PRD.md) · [Architecture](docs/ARCHITECTURE.md) · [What we learned](docs/LEARNINGS.md) · [Hackathon checklist](docs/HACKATHON.md) · [Setup](docs/SETUP.md) · [Progress](docs/PROGRESS.md)
 
 ## AI tools used
 
-Claude Code (Anthropic, Claude Opus 5) for research, planning and code generation, reviewed by the team. Amazon Nova 2 Lite on Amazon Bedrock inside the product.
+- **Claude Code** (Anthropic, Claude Opus 5): research, planning, code and docs, reviewed by the team.
+- **Amazon Nova 2 Lite** on Amazon Bedrock inside the product: explanations and grounded web answers.
+
+## Credits and data
+
+- RBI notification text (RBI/2025-26/82), stored with its SHA-256 in `sources/` for citation checks.
+- The sample bank statement and ID image are **synthetic** (see `samples/`).
+- Fonts: Noto Sans (SIL OFL).
+- Icons: Lucide (ISC).
 
 ## Disclaimer
 

@@ -61,7 +61,7 @@ export default function CasesPage({ email, onSignOut }: { email: string; onSignO
                 <p className="mt-1 text-lg font-semibold">{c.deceasedName}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {c.dod && <Chip>{t("cases.died", "Died")} {c.dod}</Chip>}
-                  <Chip tone="brand">{t(`role.${c.myRole}`, c.myRole)}</Chip>
+                  <Chip tone="brand">{t(`role.${c.myRole}`, { defaultValue: c.myRole })}</Chip>
                   {c.secondsPerDay < 86400 && <Chip tone="amber">{t("cases.demo", "Demo speed")}</Chip>}
                 </div>
               </Card>
@@ -115,7 +115,7 @@ function NewCaseModal({ open, onClose, onCreated }: { open: boolean; onClose: ()
             <select className={inputCls} value={f.relation} onChange={(e) => setF({ ...f, relation: e.target.value })}>
               {RELATIONS.map((r) => (
                 <option key={r} value={r}>
-                  {t(`rel.${r}`, r)}
+                  {t(`rel.${r}`, { defaultValue: r })}
                 </option>
               ))}
             </select>

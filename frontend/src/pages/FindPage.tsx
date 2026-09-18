@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -9,7 +9,7 @@ import { api, rupees, uploadDocument } from "../lib/api";
 import { ASSET_TYPES, useCase } from "../lib/case";
 import { Button, Card, Chip, CopyButton, Empty, ErrorNote, Field, inputCls, Modal, Spinner } from "../components/ui";
 
-const ICONS: Record<string, JSX.Element> = {
+const ICONS: Record<string, ReactElement> = {
   shares: <TrendingUp className="size-5" />,
   broker: <LineChart className="size-5" />,
   mutual_fund: <PieChart className="size-5" />,
@@ -191,7 +191,7 @@ function LeadCard({ lead, hi, onAdd, onDismiss }: { lead: any; hi: boolean; onAd
           <p className="text-sm text-muted">{hi ? lead.label?.hi : lead.label?.en}</p>
         </div>
         <Chip tone={lead.confidence === "high" ? "green" : lead.confidence === "medium" ? "amber" : "stone"}>
-          {t(`conf.${lead.confidence}`, lead.confidence)}
+          {t(`conf.${lead.confidence}`, { defaultValue: lead.confidence })}
         </Chip>
       </div>
       <p className="text-sm">{hi ? lead.reason?.hi : lead.reason?.en}</p>
@@ -384,7 +384,7 @@ function SearchKit() {
             {Object.entries(p.prefill || {}).map(([k, v]: any) =>
               Array.isArray(v) && v.length ? (
                 <div key={k} className="text-sm">
-                  <span className="text-soft">{t(`kit.f.${k}`, k)}: </span>
+                  <span className="text-soft">{t(`kit.f.${k}`, { defaultValue: k })}: </span>
                   {v.slice(0, 4).join(", ")}
                 </div>
               ) : null,

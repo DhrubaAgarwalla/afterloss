@@ -15,8 +15,8 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 | Forms and packs (RBI Annex I-A to I-E) + tests | ✅ 7-page pack, letters, Ombudsman draft |
 | Infrastructure (SAM template) | ✅ stack `afterloss` live in ap-south-1 |
 | Lambda handlers | ✅ 18/18 live end-to-end checks |
-| Frontend (React, EN/HI) | 🔄 In progress |
-| Deploy to AWS | ✅ Backend · ⏳ website (S3 + CloudFront) |
+| Frontend (React, EN/HI) | ✅ 8 screens, Hindi + English, PWA-ready, Capacitor config |
+| Deploy to AWS | ✅ Backend + website: https://d30k8rjq3ol5ah.cloudfront.net |
 | Assistant (Nova 2 Lite + Web Grounding) | ✅ live, with citations and PII firewall |
 | Demo data, README, video script | ⏳ |
 
@@ -31,7 +31,30 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 
 ## Log
 
-### 2026-09-18 20:35 IST: Backend live on AWS, full flow passes end to end
+### 2026-09-18 20:15 IST: Frontend built and live on CloudFront
+**What**
+- React 19 + Vite 8 + TypeScript 7 + Tailwind 4, with Amplify Auth (Cognito) and i18next (**English + Hindi**, 190+ strings translated).
+- Screens:
+  - **Sign in / create account**
+  - **Cases**
+  - **Case home**: stats, next actions, timeline
+  - **Find**: statement upload or the sample; leads board with evidence lines and confidence; add-as-claim questions; **official search kit** with name variants, copy buttons, portal links and "record what you found"
+  - **Claims**: list, and detail with route plus citation, questions, documents, pack, submit, and a **live clock** (day bar, the "has money arrived?" question, compensation card, letters)
+  - **Family**: people with roles, payment account, members and invites
+  - **Documents**: masked copies; helpers get Cedar's denial message
+  - **Ask**: explain or web mode, PII-removed chips, sources marked official
+- Mobile-first layout: bottom navigation on phones, sidebar on desktop. Noto Sans / Noto Sans Devanagari are bundled, so fonts work offline for the future APK.
+- PWA manifest and icons; `capacitor.config.ts` is ready for `npx cap add android`.
+- Website stack `afterloss-web` (`infra/web.yaml`): private S3 behind **CloudFront with Origin Access Control**, HTTPS only, SPA fallback, security headers (HSTS, frame-deny, nosniff). Published with `scripts/deploy-web.ps1` (hashed assets are cached for a year; `index.html` is no-cache).
+- Checked on the live URL: the page renders, the Hindi toggle works, no console errors.
+
+**Why**
+- Ship It needs a URL the judges can open. Best UI rewards a calm, bilingual, phone-first design.
+
+**Left**
+- Test the signed-in flow in the browser (needs you to sign in once; I don't type passwords), README and demo script, then the video.
+
+### 2026-09-18 20:00 IST: Backend live on AWS, full flow passes end to end
 **What**
 - **Deployed** stack `afterloss` (ap-south-1) with SAM (`scripts/deploy-backend.ps1`):
   - Cognito and HTTP API (JWT authorizer, throttled)
