@@ -13,6 +13,8 @@ import ClaimDetail from "./pages/ClaimDetail";
 import FamilyPage from "./pages/FamilyPage";
 import DocumentsPage from "./pages/DocumentsPage";
 import AskPage from "./pages/AskPage";
+import SetupPage from "./pages/SetupPage";
+import GuidesPage from "./pages/GuidesPage";
 
 export default function App() {
   const [email, setEmail] = useState<string | null | undefined>(undefined);
@@ -56,6 +58,10 @@ export default function App() {
           <Route path="family" element={<FamilyPage />} />
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="ask" element={<AskPage />} />
+          <Route path="setup" element={<SetupPage />} />
+          <Route path="setup/:step" element={<SetupPage />} />
+          <Route path="guides" element={<GuidesPage />} />
+          <Route path="guides/:guideId" element={<GuidesPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

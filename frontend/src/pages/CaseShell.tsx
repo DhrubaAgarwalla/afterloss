@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, FileStack, Home, LogOut, MessageCircleQuestion, ScanSearch, Scale, Users } from "lucide-react";
+import { ArrowLeft, BookOpen, FileStack, Home, ListChecks, LogOut, MessageCircleQuestion, ScanSearch, Scale, Users } from "lucide-react";
 import { CaseProvider, useCase } from "../lib/case";
 import { brand } from "../lib/config";
 import { Chip, ErrorNote, Spinner } from "../components/ui";
@@ -23,17 +23,20 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
   const { view, error } = useCase();
   const items = [
     { to: "", end: true, icon: <Home className="size-5" />, label: t("nav.home", "Home") },
-    { to: "find", icon: <ScanSearch className="size-5" />, label: t("nav.find", "Find") },
-    { to: "claims", icon: <Scale className="size-5" />, label: t("nav.claims", "Claims") },
-    { to: "family", icon: <Users className="size-5" />, label: t("nav.family", "Family") },
-    { to: "documents", icon: <FileStack className="size-5" />, label: t("nav.docs", "Documents") },
+    { to: "setup", icon: <ListChecks className="size-5" />, label: t("nav.setup", "Details") },
+    { to: "claims", icon: <Scale className="size-5" />, label: t("nav.plan", "Claim plan") },
+    { to: "guides", icon: <BookOpen className="size-5" />, label: t("nav.guides", "Guides") },
     { to: "ask", icon: <MessageCircleQuestion className="size-5" />, label: t("nav.ask", "Ask") },
+    { to: "documents", icon: <FileStack className="size-5" />, label: t("nav.docs", "Documents") },
+    { to: "find", icon: <ScanSearch className="size-5" />, label: t("nav.find", "Find") },
+    { to: "family", icon: <Users className="size-5" />, label: t("nav.family", "Family & access") },
   ];
-  const mobile = items.filter((i) => i.to !== "documents");
+  const mobile = items.slice(0, 5);
+  const inSetup = location.pathname.includes("/setup");
   const role = view?.me?.role;
 
   return (
-    <div className="min-h-screen pb-20 md:pb-0">
+    <div className={`min-h-screen md:pb-0 ${inSetup ? "pb-4" : "pb-20"}`}>
       <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4">
           <button className="focus-ring rounded-lg p-1.5 text-muted hover:bg-stone-100" onClick={() => nav("/")} aria-label={t("back", "Back")}>
@@ -84,7 +87,7 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
         </main>
       </div>
 
-      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white md:hidden" aria-label="Case">
+      <nav className={`safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white md:hidden ${inSetup ? "hidden" : ""}`} aria-label="Case">
         <div className="grid grid-cols-5">
           {mobile.map((i) => (
             <NavLink

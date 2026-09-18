@@ -12,26 +12,46 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 | Rules engine (RBI Directions 2025) + tests | ✅ 36 tests pass; 27 citations verified against the hashed RBI text |
 | Discovery (statement → leads) + tests | ✅ 16/16 planted leads found, 0 false positives |
 | Privacy (Aadhaar masking, PII firewall) | ✅ |
-| Forms and packs (RBI Annex I-A to I-E) + tests | ✅ 7-page pack, letters, Ombudsman draft |
+| Forms and packs (RBI Annex I-A to I-E) + tests | ✅ printed on the **official RBI form pages** (overlay), letters, Ombudsman draft; pre-filled claim letters for every other asset |
+| Guided flow v2 (`docs/FLOW.md`) | ✅ 7-step setup, claim plan per asset, guides for missing documents |
 | Infrastructure (SAM template) | ✅ stack `afterloss` live in ap-south-1 |
-| Lambda handlers | ✅ 18/18 live end-to-end checks |
+| Lambda handlers | ✅ 18/18 live end-to-end checks · 107 unit tests |
 | Frontend (React, EN/HI) | ✅ 8 screens, Hindi + English, PWA-ready, Capacitor config |
 | Deploy to AWS | ✅ Backend + website: https://d30k8rjq3ol5ah.cloudfront.net |
-| Assistant (Nova 2 Lite + Web Grounding) | ✅ live, with citations and PII firewall |
+| Assistant (Nova 2 Lite + Web Grounding) | ✅ fixed 19 Sep: async jobs (no 30 s timeout), crash fixed, answers render bullets |
 | Demo data, README, video script | ✅ sample statement, README, `docs/DEMO_SCRIPT.md` · ⏳ video |
 
 ## Needs from you
 
 - [x] AWS account, admin user, CLI, `aws login` (done)
-- [ ] **Sign in once** on the live app in Claude's browser pane: https://d30k8rjq3ol5ah.cloudfront.net ("Create account", then the email code). I don't type passwords, so after that I test the signed-in screens in your session.
-- [ ] **Email for alerts:** turns on the $20 budget alarm, the error alarm and SES reminders (redeploy with `-AlertEmail you@...`)
-- [ ] (Optional) Download the 9 RBI PDFs (SETUP step 8) so the forms match the official layouts word for word
+- [x] Signed in on the live app in Claude's browser pane (done 18 Sep)
+- [x] Alert email set (dhrubagarwala67@gmail.com): **confirm the SNS subscription email** AWS sent, or the budget / error alarms stay silent
+- [x] Official form formats: used SBI's published blank copy of RBI's standard Annex I-A to I-H (no bank branding)
+- [ ] (Optional) "Connect Gmail" (read-only, runs in the browser) needs a Google Cloud OAuth client ID; until then the app uses one-tap Gmail searches that open in your own Gmail
 - [ ] Decide the final product name whenever you're ready (one-line change in `config/brand.json`)
 - [ ] Record the video (script in `docs/DEMO_SCRIPT.md`) and submit before Sunday's deadline
 
 ---
 
 ## Log
+
+### 2026-09-19 04:00 IST: Flow v2: guided setup, claim plans, official-format forms, AI fixed
+**What**
+- **AI fixed.** Two bugs: (1) the Ask screen crashed the whole app on new Chrome (an effect returned `scrollIntoView()`'s Promise, which React called as a cleanup); (2) web-grounded answers sometimes took over 30 s, API Gateway's hard limit. The assistant now runs as an **async job** (POST starts it, the Lambda re-invokes itself, the app polls `GET /assistant/{jobId}`), with fallbacks: web search fails → plain Nova answer marked "no live sources" → rule text. An error boundary now contains any screen crash.
+- **Guided setup** (`/setup/:step`), 7 steps in the order the forms need facts: about them (place of death, certificate, address split as on the form, religion → law of succession, will) → family (relation list, DOB → age, "same address", guardian for minors, who claims / who signs the no-objection, independent declarant) → **who gets paid** (each claimant's own account, IFSC lookup, re-enter check) → their **bank accounts** (type it, **passbook photo read by Textract**, or statement) → **investments** (MF, demat, insurance, PF, NPS, PPF, post office, cards, loans; each asks only its own number) with **one-tap Gmail searches** → find unknown assets (statements + official searches) → **choose what to claim**.
+- **Format checks while typing**: PAN (4th letter P, 5th = surname initial), IFSC, mobile, PIN, demat BO ID, UAN, PRAN, date order.
+- **Claim plan per asset**, numbered: what applies → documents (tick what you have; "how to get it" for the rest) → forms filled for you → sign, stamp and submit (who signs, which annexes need stamp paper, ask the stamp value for your state) → track (RBI clock for banks; submitted / received for others).
+- **Rules as data for every asset type** (`rules/data/other_assets.json`): variants by nominee and amount, from primary sources: SEBI FAQs Jan 2026 (demat ₹15 lakh / physical ₹5 lakh per company), AMFI BPG circular 110 (MF ₹5 lakh / ₹10 lakh slabs, Form T3), Government Savings Promotion General Rules 2018 rule 15 (Form-11, ₹5 lakh after 6 months), IRDAI 2024 (15 / 45 days, Bank Rate + 2%), EPF Scheme para 72(7) (30 days), Gratuity Act s.7(3).
+- **Guides** (`rules/data/guides.json`, public `GET /guides`): death certificate (incl. late registration, RBD Act s.13), legal heir certificate, succession certificate, probate, stamp paper / e-stamp, notary, indemnity, affidavit, no-objection, KYC, bank proof, UAN/PRAN, CML, policy, medical records, FIR.
+- **Official form pages**: the RBI annexes are now printed on the official blank forms themselves (`forms/official.py` + `templates/rbi_annex_forms.pdf`, SHA-256 checked), using positions measured once by `scripts/build_form_layout.py`: values in blue ink on the lines, tick boxes ticked, non-applicable options struck through, amount in words (lakh/crore), dates DD-MM-YYYY.
+- **Claim letter pack** for non-bank assets: plan sheet + pre-filled death intimation and claim letter with every identifier; liabilities get a statement-and-insurance request instead.
+- Other fixes from testing: clearer lead evidence text, Indian number format in compensation, dates in Indian format and no longer wrapping, day count matches the server when it asks, asset delete, per-claimant bank details in the forms, 144 new Hindi strings.
+
+**Why**
+- Your feedback: the flow was hard to follow, forms should look exactly like the official ones, every asset type needs a full step-by-step with missing-document help, and the AI didn't work.
+
+**Left**
+- Test the new flow end to end on the live site (phone size), then commit, and record the video.
 
 ### 2026-09-18 20:15 IST: Frontend built and live on CloudFront
 **What**

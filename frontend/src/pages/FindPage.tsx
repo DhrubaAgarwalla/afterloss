@@ -52,7 +52,7 @@ export default function FindPage() {
   );
 }
 
-function FromDocuments() {
+export function FromDocuments({ stay }: { stay?: boolean } = {}) {
   const { t, i18n } = useTranslation();
   const hi = i18n.language === "hi";
   const { caseId, view, reload } = useCase();
@@ -170,7 +170,7 @@ function FromDocuments() {
           <LeadCard key={l.leadId} lead={l} hi={hi} onAdd={() => setAdding(l)} onDismiss={() => dismiss(l)} />
         ))}
       </div>
-      <AddLeadModal lead={adding} onClose={() => setAdding(null)} />
+      <AddLeadModal lead={adding} onClose={() => setAdding(null)} stay={stay} />
     </div>
   );
 }
@@ -231,7 +231,7 @@ function LeadCard({ lead, hi, onAdd, onDismiss }: { lead: any; hi: boolean; onAd
   );
 }
 
-function AddLeadModal({ lead, onClose }: { lead: any; onClose: () => void }) {
+function AddLeadModal({ lead, onClose, stay }: { lead: any; onClose: () => void; stay?: boolean }) {
   const { t, i18n } = useTranslation();
   const hi = i18n.language === "hi";
   const nav = useNavigate();
@@ -260,7 +260,7 @@ function AddLeadModal({ lead, onClose }: { lead: any; onClose: () => void }) {
       const a: any = await api("POST", `/cases/${caseId}/leads/${lead.leadId}/confirm`, body);
       await reload();
       onClose();
-      nav(`../claims/${a.assetId}`);
+      if (!stay) nav(`../claims/${a.assetId}`);
     } catch (e) {
       setError(e);
     } finally {
@@ -317,7 +317,7 @@ function AddLeadModal({ lead, onClose }: { lead: any; onClose: () => void }) {
   );
 }
 
-function SearchKit() {
+export function SearchKit() {
   const { t, i18n } = useTranslation();
   const hi = i18n.language === "hi";
   const { caseId, view, reload } = useCase();

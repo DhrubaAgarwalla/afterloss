@@ -50,12 +50,18 @@ export function Chip({ children, tone = "stone" }: { children: ReactNode; tone?:
   return <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${t}`}>{children}</span>;
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Field({ label, hint, warn, children }: { label: string; hint?: string; warn?: string | null; children: ReactNode }) {
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-ink">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-soft">{hint}</span>}
+      {warn ? (
+        <span className="mt-1 block text-xs text-amber-800" role="alert">
+          {warn}
+        </span>
+      ) : (
+        hint && <span className="mt-1 block text-xs text-soft">{hint}</span>
+      )}
     </label>
   );
 }

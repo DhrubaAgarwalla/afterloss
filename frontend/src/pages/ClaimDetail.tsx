@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  AlertTriangle, ArrowLeft, BellRing, CalendarCheck, CheckCircle2, ExternalLink, FileDown, FileText, Hourglass,
-  Landmark, MessageCircleQuestion, Printer, Scale,
+  AlertTriangle, ArrowLeft, BellRing, BookOpen, CalendarCheck, CheckCircle2, Circle, ExternalLink, FileDown, FileText, Hourglass,
+  Landmark, MapPin, MessageCircleQuestion, PenLine, Printer, Scale, Stamp,
 } from "lucide-react";
 import { api, rupees, uploadDocument } from "../lib/api";
 import { ASSET_TYPES, STATUS, useCase } from "../lib/case";
+import { fmtDate, fmtDateTime } from "../lib/format";
+import { todayIso } from "../lib/validate";
+import { AssetForm, categoryFor } from "../components/AssetForm";
 import { Button, Card, Chip, Citation, ErrorNote, Field, inputCls, Toggle } from "../components/ui";
 
 const BANKISH = ["bank_deposit", "term_deposit", "locker", "safe_custody"];
@@ -16,18 +19,21 @@ export default function ClaimDetail() {
   const { t, i18n } = useTranslation();
   const hi = i18n.language === "hi";
   const { view } = useCase();
+  const [editing, setEditing] = useState(false);
   const a = (view.assets as any[]).find((x) => x.assetId === assetId);
   if (!a) return <p className="text-muted">{t("claims.notFound", "This claim no longer exists.")}</p>;
   const r = a.route ?? {};
   const st = STATUS[a.status] ?? STATUS.draft;
+  const bank = BANKISH.includes(a.assetType);
+  const liability = ["loan", "credit_card"].includes(a.assetType);
 
   return (
     <div className="space-y-5">
       <Link to=".." relative="path" className="inline-flex items-center gap-1 text-sm text-brand-700">
-        <ArrowLeft className="size-4" /> {t("claims.title", "Claims")}
+        <ArrowLeft className="size-4" /> {t("nav.plan", "Claim plan")}
       </Link>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-sm text-soft">{hi ? ASSET_TYPES[a.assetType]?.hi : ASSET_TYPES[a.assetType]?.en}</p>
           <h1 className="text-2xl font-semibold">{a.institution || t("claims.untitled", "Untitled asset")}</h1>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -36,25 +42,274 @@ export default function ClaimDetail() {
             {a.bankType && <Chip>{a.bankType === "cooperative" ? t("q.coop", "Co-operative bank") : t("q.commercial", "Commercial bank")}</Chip>}
           </div>
         </div>
-        <Link to={`../../ask?asset=${a.assetId}`} relative="path">
-          <Button variant="soft" icon={<MessageCircleQuestion className="size-4" />}>
-            {t("claim.explain", "Explain in simple words")}
-          </Button>
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link to={`../../ask?asset=${a.assetId}`} relative="path">
+            <Button variant="soft" icon={<MessageCircleQuestion className="size-4" />}>
+              {t("claim.explain", "Explain in simple words")}
+            </Button>
+          </Link>
+          {!bank && (
+            <Button variant="secondary" onClick={() => setEditing(true)}>
+              {t("claim.editDetails", "Edit details")}
+            </Button>
+          )}
+        </div>
       </div>
 
-      {r.route === "NEEDS_INFO" && <Questions a={a} />}
-      {r.route !== "NEEDS_INFO" && r.automation !== "checklist" && <RouteCard a={a} />}
-      {r.automation === "checklist" && <Checklist a={a} />}
-      {a.clock && <Clock a={a} />}
-      {BANKISH.includes(a.assetType) && r.route !== "NEEDS_INFO" && r.automation !== "stop" && !a.clock && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <PackCard a={a} />
-          <SubmitCard a={a} />
+      {r.route === "NEEDS_INFO" ? (
+        <Questions a={a} />
+      ) : (
+        <ol className="space-y-4">
+          <PlanStep n={1} title={t("plan.s1", "What applies to you")}>
+            {bank ? <RouteCard a={a} /> : <Playbook a={a} />}
+          </PlanStep>
+          <PlanStep n={2} title={t("plan.s2", "Documents")}>
+            <DocsChecklist a={a} />
+          </PlanStep>
+          {r.automation !== "stop" && (
+            <PlanStep n={3} title={liability ? t("plan.s3l", "Letter, filled for you") : t("plan.s3", "Forms, filled for you")}>
+              <PackCard a={a} />
+            </PlanStep>
+          )}
+          <PlanStep n={4} title={t("plan.s4", "Sign, stamp and submit")}>
+            <SubmitGuide a={a} />
+          </PlanStep>
+          <PlanStep n={5} title={t("plan.s5", "Track it")}>
+            {bank ? a.clock ? <Clock a={a} /> : r.automation !== "stop" ? <SubmitCard a={a} /> : null : <TrackOther a={a} />}
+          </PlanStep>
+        </ol>
+      )}
+      {bank && <Facts a={a} />}
+      <AssetForm category={editing ? categoryFor(a) : null} asset={a} onClose={() => setEditing(false)} />
+    </div>
+  );
+}
+
+function PlanStep({ n, title, children }: { n: number; title: string; children: ReactNode }) {
+  return (
+    <li className="space-y-2">
+      <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-brand-800">
+        <span className="flex size-6 items-center justify-center rounded-full bg-brand-700 text-xs text-white">{n}</span>
+        {title}
+      </p>
+      {children}
+    </li>
+  );
+}
+
+function Playbook({ a }: { a: any }) {
+  const { t, i18n } = useTranslation();
+  const hi = i18n.language === "hi";
+  const r = a.route;
+  return (
+    <Card className="space-y-3">
+      <p className="text-lg font-semibold leading-snug">{hi ? r.title.hi : r.title.en}</p>
+      <ol className="space-y-2">
+        {(r.steps?.length ? r.steps : r.checklist ?? []).map((c: any, i: number) => (
+          <li key={i} className="flex gap-3 text-sm">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-800">{i + 1}</span>
+            <span>{hi ? c.hi || c.en : c.en}</span>
+          </li>
+        ))}
+      </ol>
+      {r.timeline && <p className="rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-900">⏱ {hi ? r.timeline.hi || r.timeline.en : r.timeline.en}</p>}
+      <div className="flex flex-wrap items-center gap-3">
+        {(r.sources ?? []).map((src: any) => (
+          <a key={src.url} className="inline-flex items-center gap-1 text-sm text-brand-700 underline" href={src.url} target="_blank" rel="noreferrer">
+            {src.label} <ExternalLink className="size-3.5" />
+          </a>
+        ))}
+        {!r.verified && <Chip tone="amber">{t("claim.guidance", "Guidance: confirm with the institution")}</Chip>}
+      </div>
+    </Card>
+  );
+}
+
+function DocsChecklist({ a }: { a: any }) {
+  const { t, i18n } = useTranslation();
+  const hi = i18n.language === "hi";
+  const { caseId, view, reload } = useCase();
+  const r = a.route ?? {};
+  const forms: string[] = r.forms ?? [];
+  const [have, setHave] = useState<Record<string, boolean>>(a.docsHave ?? {});
+  const [error, setError] = useState<unknown>(null);
+  const docs: any[] = r.documents ?? [];
+  const uploaded = new Set((view.documents as any[]).map((d) => d.kind));
+  const isFilled = (d: any) => (d.form && forms.includes(d.form) && BANKISH.includes(a.assetType)) || (!BANKISH.includes(a.assetType) && d.id === "claim_letter");
+  const autoHave = (d: any) => isFilled(d) || (d.id === "death_certificate" && uploaded.has("death_certificate"));
+  const ready = docs.filter((d) => have[d.id] || autoHave(d)).length;
+
+  async function toggle(id: string) {
+    const next = { ...have, [id]: !have[id] };
+    setHave(next);
+    try {
+      await api("PATCH", `/cases/${caseId}/assets/${a.assetId}`, { docsHave: next });
+      await reload();
+    } catch (e) {
+      setError(e);
+    }
+  }
+
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-muted">{t("plan.docsReady", "{{n}} of {{total}} ready", { n: ready, total: docs.length })}</p>
+        <div className="h-2 w-28 rounded-full bg-stone-200">
+          <div className="h-2 rounded-full bg-brand-600" style={{ width: `${docs.length ? (ready / docs.length) * 100 : 0}%` }} />
+        </div>
+      </div>
+      <ul className="space-y-2">
+        {docs.map((d) => {
+          const filled = isFilled(d);
+          const got = have[d.id] || autoHave(d);
+          return (
+            <li key={d.id} className="flex items-start gap-2.5 rounded-xl p-2 text-sm hover:bg-stone-50">
+              <button
+                type="button"
+                className="focus-ring mt-0.5 shrink-0 rounded-full"
+                onClick={() => !filled && toggle(d.id)}
+                aria-pressed={got}
+                aria-label={t("plan.iHaveIt", "I have it")}
+                disabled={filled}
+              >
+                {got ? <CheckCircle2 className="size-5 text-brand-700" /> : <Circle className="size-5 text-stone-400" />}
+              </button>
+              <span className="min-w-0 flex-1">
+                <span className={got ? "text-muted" : ""}>{hi ? d.hi || d.en : d.en}</span>
+                <span className="mt-1 flex flex-wrap gap-2">
+                  {filled ? (
+                    <Chip tone="brand">{t("claim.inPack", "Filled in pack")}</Chip>
+                  ) : d.at_branch ? (
+                    <Chip>{t("claim.atBranch", "At the branch")}</Chip>
+                  ) : d.guide && !got ? (
+                    <Link to={`../../guides/${d.guide}`} relative="path" className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 underline">
+                      <BookOpen className="size-3.5" /> {t("plan.howToGet", "How to get it")}
+                    </Link>
+                  ) : null}
+                  {d.form && !filled && <Chip tone="blue">{t("plan.officialForm", "Official form: {{f}}", { f: d.form })}</Chip>}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <ErrorNote error={error} />
+    </Card>
+  );
+}
+
+function SubmitGuide({ a }: { a: any }) {
+  const { t, i18n } = useTranslation();
+  const hi = i18n.language === "hi";
+  const nav = useNavigate();
+  const { caseId, view } = useCase();
+  const r = a.route ?? {};
+  const bank = BANKISH.includes(a.assetType);
+  const claimants = (view.people as any[]).filter((p) => p.isClaimant || p.isNominee);
+  const others = (view.people as any[]).filter((p) => p.isNonClaimantHeir);
+  const declarant = (view.people as any[]).find((p) => p.isDeclarant);
+  const stampForms = bank ? (r.forms ?? []).filter((f: string) => ["I-C", "I-D", "I-E", "I-H"].includes(f)) : [];
+  const state = view.case.deceasedState;
+  return (
+    <Card className="space-y-3 text-sm">
+      <p className="flex items-start gap-2">
+        <PenLine className="mt-0.5 size-4 shrink-0 text-brand-700" />
+        <span>
+          <span className="font-semibold">{t("plan.whoSigns", "Who signs")}: </span>
+          {[...claimants.map((p) => p.fullName), ...(bank && others.length ? others.map((p) => `${p.fullName} (I-D)`) : []), ...(bank && declarant && (r.forms ?? []).includes("I-E") ? [`${declarant.fullName} (I-E)`] : [])].join(", ") ||
+            t("plan.addPeople", "Add the family first")}
+        </span>
+      </p>
+      {stampForms.length > 0 && (
+        <p className="flex items-start gap-2">
+          <Stamp className="mt-0.5 size-4 shrink-0 text-brand-700" />
+          <span>
+            <span className="font-semibold">{t("plan.stamp", "Stamp paper")}: </span>
+            {t("plan.stampText", "Annex {{forms}} must be stamped under your state's Stamp Act. Ask the branch for the value, buy an e-stamp, then sign.", { forms: stampForms.join(", ") })}{" "}
+            <Link to="../../guides/stamp_paper" relative="path" className="font-medium text-brand-700 underline">
+              {t("plan.stampGuide", "How")}
+            </Link>
+            {" · "}
+            <button
+              className="font-medium text-brand-700 underline"
+              onClick={() =>
+                nav(`/cases/${caseId}/ask?mode=web&q=${encodeURIComponent(`What is the stamp duty for an indemnity bond and an affidavit in ${state || "my state"}?`)}`)
+              }
+            >
+              {t("plan.askState", "Ask the value for {{state}}", { state: state || t("guides.myState", "my state") })}
+            </button>
+          </span>
+        </p>
+      )}
+      <p className="flex items-start gap-2">
+        <MapPin className="mt-0.5 size-4 shrink-0 text-brand-700" />
+        <span>
+          <span className="font-semibold">{t("plan.where", "Where to submit")}: </span>
+          {bank ? t("plan.anyBranch", "Any branch of {{bank}}; you don't have to go to the home branch (RBI para 29). Ask for a dated acknowledgement.", { bank: a.institution }) : r.where}
+        </span>
+      </p>
+      <p className="flex items-start gap-2">
+        <FileText className="mt-0.5 size-4 shrink-0 text-brand-700" />
+        <span>{t("plan.selfAttest", "Self-attest each ID copy (sign across it) and carry the originals.")}</span>
+      </p>
+    </Card>
+  );
+}
+
+function TrackOther({ a }: { a: any }) {
+  const { t, i18n } = useTranslation();
+  const hi = i18n.language === "hi";
+  const { caseId, reload } = useCase();
+  const [date, setDate] = useState(a.submittedOn || todayIso());
+  const [got, setGot] = useState(String(a.receivedAmount ?? a.amount ?? ""));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const r = a.route ?? {};
+  async function save(body: any) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api("PATCH", `/cases/${caseId}/assets/${a.assetId}`, body);
+      await reload();
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Card className="space-y-3">
+      {r.timeline && <p className="text-sm text-muted">{hi ? r.timeline.hi || r.timeline.en : r.timeline.en}</p>}
+      {a.receivedOn ? (
+        <p className="font-medium text-green-800">
+          ✓ {t("plan.received", "Received {{amt}} on {{d}}", { amt: rupees(a.receivedAmount) || "", d: fmtDate(a.receivedOn, hi) })}
+        </p>
+      ) : a.submittedOn ? (
+        <div className="space-y-3">
+          <p className="text-sm">
+            {t("plan.submittedOn", "Submitted on {{d}}.", { d: fmtDate(a.submittedOn, hi) })}
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <Field label={t("clock.amountReceived", "Amount received (₹)")}>
+              <input className={inputCls + " w-40"} inputMode="numeric" value={got} onChange={(e) => setGot(e.target.value.replace(/[^\d.]/g, ""))} />
+            </Field>
+            <Button loading={busy} onClick={() => save({ receivedOn: todayIso(), receivedAmount: got ? Number(got) : "" })}>
+              {t("plan.markReceived", "Mark as received")}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label={t("plan.submittedDate", "Submitted on")}>
+            <input className={inputCls} type="date" max={todayIso()} value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
+          <Button loading={busy} icon={<CalendarCheck className="size-4" />} onClick={() => save({ submittedOn: date })}>
+            {t("plan.markSubmitted", "Mark as submitted")}
+          </Button>
         </div>
       )}
-      {BANKISH.includes(a.assetType) && <Facts a={a} />}
-    </div>
+      <ErrorNote error={error} />
+    </Card>
   );
 }
 
@@ -116,7 +371,6 @@ function RouteCard({ a }: { a: any }) {
   const { t, i18n } = useTranslation();
   const hi = i18n.language === "hi";
   const r = a.route;
-  const forms: string[] = r.forms ?? [];
   return (
     <Card className="space-y-4">
       <div className="flex items-start gap-3">
@@ -142,21 +396,6 @@ function RouteCard({ a }: { a: any }) {
           {t("claim.stop", "This needs court documents or legal help. We've listed what the bank will ask for, but we don't automate this route.")}
         </p>
       )}
-      <div>
-        <p className="mb-2 font-semibold">{t("claim.documents", "Documents")}</p>
-        <ul className="space-y-2">
-          {(r.documents ?? []).map((d: any) => {
-            const inPack = d.form && forms.includes(d.form);
-            return (
-              <li key={d.id} className="flex items-start gap-2 text-sm">
-                {inPack ? <FileText className="mt-0.5 size-4 shrink-0 text-brand-700" /> : d.at_branch ? <Landmark className="mt-0.5 size-4 shrink-0 text-stone-500" /> : <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-stone-400" />}
-                <span className="flex-1">{hi ? d.hi || d.en : d.en}</span>
-                {inPack ? <Chip tone="brand">{t("claim.inPack", "Filled in pack")}</Chip> : d.at_branch ? <Chip>{t("claim.atBranch", "At the branch")}</Chip> : null}
-              </li>
-            );
-          })}
-        </ul>
-      </div>
       {(r.notes ?? []).length > 0 && (
         <ul className="space-y-2">
           {r.notes.map((n: any, i: number) => (
@@ -171,12 +410,13 @@ function RouteCard({ a }: { a: any }) {
 }
 
 function PackCard({ a }: { a: any }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { caseId, view, reload } = useCase();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const packs = (view.documents as any[]).filter((d) => d.kind === "pack" && d.assetId === a.assetId);
   const noPeople = !(view.people as any[]).some((p) => p.isClaimant || p.isNominee);
+  const bank = BANKISH.includes(a.assetType);
 
   async function open(docId: string) {
     const r: any = await api("GET", `/cases/${caseId}/documents/${docId}/url?variant=original`);
@@ -190,12 +430,14 @@ function PackCard({ a }: { a: any }) {
         <p className="font-semibold">{t("claim.pack", "Claim pack")}</p>
       </div>
       <p className="text-sm text-muted">
-        {t("claim.packText", "RBI's standard forms filled from your family's details, masked ID copies, and a checklist. Print, sign, submit.")}
+        {bank
+          ? t("claim.packText", "RBI's standard forms, printed on the official format with your family's details, masked ID copies, and a checklist. Print, sign, submit.")
+          : t("claim.packTextOther", "A pre-filled letter to {{inst}} with the death intimation and claim request, the document list, and the steps. Print, sign, submit with their own form.", { inst: a.institution })}
       </p>
       {noPeople && (
         <p className="rounded-xl bg-amber-50 p-2.5 text-sm text-amber-900">
           {t("claim.needPeople", "Add the claimants under Family first.")}{" "}
-          <Link className="underline" to="../../family" relative="path">
+          <Link className="underline" to="../../setup/family" relative="path">
             {t("nav.family", "Family")}
           </Link>
         </p>
@@ -231,7 +473,7 @@ function PackCard({ a }: { a: any }) {
               <button className="text-brand-700 underline" onClick={() => open(p.docId)}>
                 {p.filename}
               </button>{" "}
-              <span className="text-xs text-soft">{new Date(p.createdAt).toLocaleString()}</span>
+              <span className="text-xs text-soft">{fmtDateTime(p.createdAt, i18n.language === "hi")}</span>
             </li>
           ))}
         </ul>
@@ -301,7 +543,7 @@ function useNow(ms: number) {
 }
 
 function Clock({ a }: { a: any }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { caseId, view, reload } = useCase();
   const c = a.clock;
   const spd = Number(c.secondsPerDay || view.case.secondsPerDay || 86400);
@@ -311,8 +553,9 @@ function Clock({ a }: { a: any }) {
     return Math.max(0, Math.floor((now - Date.parse(c.docsCompleteDate)) / 86400000));
   }, [now, spd, c.startedAt, c.docsCompleteDate]);
   const waiting = (view.waitingFor as any[]).find((w) => w.assetId === a.assetId);
+  const shownDay = waiting?.stage === "settled" ? Math.max(day, 15) : day;
   const done = ["settled", "settled_late", "resolved", "escalated"].includes(a.status) || c.stage === "done";
-  const pct = Math.min(100, (Math.min(day, 15) / 15) * 100);
+  const pct = Math.min(100, (Math.min(shownDay, 15) / 15) * 100);
   const [amount, setAmount] = useState(String(a.amount || ""));
   const [busy, setBusy] = useState(false);
   const docs = view.documents as any[];
@@ -341,7 +584,9 @@ function Clock({ a }: { a: any }) {
           <p className="font-semibold">{t("clock.title", "Settlement clock")}</p>
         </div>
         <p className="text-sm text-muted">
-          {t("clock.dates", "Documents complete {{a}} · due {{b}}", { a: c.docsCompleteDate, b: c.dueDate })}
+          <span className="whitespace-nowrap">{t("clock.complete", "Documents complete {{d}}", { d: fmtDate(c.docsCompleteDate, i18n.language === "hi") })}</span>
+          {" · "}
+          <span className="whitespace-nowrap font-medium text-ink">{t("clock.due", "due {{d}}", { d: fmtDate(c.dueDate, i18n.language === "hi") })}</span>
         </p>
       </div>
       {!done && (
@@ -355,7 +600,7 @@ function Clock({ a }: { a: any }) {
           <div className="mt-1.5 flex justify-between text-xs text-soft">
             <span>{t("clock.day0", "Day 0")}</span>
             <span className="font-semibold text-ink">
-              {day <= 15 ? t("clock.dayN", "Day {{n}} of 15", { n: day }) : t("clock.over", "{{n}} days past due", { n: day - 15 })}
+              {shownDay <= 15 ? t("clock.dayN", "Day {{n}} of 15", { n: shownDay }) : t("clock.over", "{{n}} days past due", { n: shownDay - 15 })}
               {spd < 86400 && ` · ${t("clock.demo", "demo: 1 day = {{s}}s", { s: spd })}`}
             </span>
             <span>{t("clock.day15", "Day 15")}</span>
@@ -404,9 +649,9 @@ function Clock({ a }: { a: any }) {
           <p className="mt-1 font-mono text-xs text-muted">{c.compensation.formula}</p>
           <p className="mt-1 text-xs text-muted">
             {c.compensation.kind === "deposit"
-              ? t("clock.compNote", "Bank Rate {{br}}% (on {{d}}) + 4% = {{r}}% a year, for {{n}} day(s) of delay.", {
+              ? t(c.compensation.delay_days === 1 ? "clock.compNote1" : "clock.compNote", "Bank Rate {{br}}% (on {{d}}) + 4% = {{r}}% a year, for {{n}} days of delay so far.", {
                   br: c.compensation.bank_rate_pct,
-                  d: c.compensation.docs_complete,
+                  d: fmtDate(c.compensation.docs_complete, i18n.language === "hi"),
                   r: c.compensation.rate_pct,
                   n: c.compensation.delay_days,
                 })

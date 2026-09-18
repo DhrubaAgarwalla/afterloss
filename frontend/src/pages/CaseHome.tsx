@@ -1,9 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, BellRing, CircleDot, Sparkles } from "lucide-react";
+import { ArrowRight, BellRing, Check, CircleDot, ListChecks, Sparkles } from "lucide-react";
 import { useCase } from "../lib/case";
 import { rupees } from "../lib/api";
-import { Card, Stat } from "../components/ui";
+import { Button, Card, Stat } from "../components/ui";
+import { nextSetupStep, STEPS, stepDone } from "./SetupPage";
 
 export default function CaseHome() {
   const { t, i18n } = useTranslation();
@@ -14,9 +15,11 @@ export default function CaseHome() {
 
   const go = (a: any) => {
     const target =
-      a.kind === "leads" || a.kind === "find" ? "find" : a.kind === "people" ? "family" : a.assetId ? `claims/${a.assetId}` : "claims";
+      a.kind === "leads" || a.kind === "find" ? "setup/discover" : a.kind === "people" ? "setup/family" : a.assetId ? `claims/${a.assetId}` : "claims";
     nav(target);
   };
+  const next = nextSetupStep(view);
+  const doneCount = STEPS.filter((s) => stepDone(view, s.id)).length;
 
   return (
     <div className="space-y-6">
@@ -32,6 +35,42 @@ export default function CaseHome() {
             </p>
           </div>
         </div>
+      </Card>
+
+      <Card className="space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-soft">{t("home.setup", "Getting everything ready")}</p>
+            <p className="text-lg font-semibold">
+              {t("home.setupProgress", "{{done}} of {{total}} steps done", { done: doneCount, total: STEPS.length })}
+            </p>
+          </div>
+          <ListChecks className="size-6 text-brand-700" />
+        </div>
+        <ol className="grid gap-1.5 sm:grid-cols-2">
+          {STEPS.map((s, i) => {
+            const ok = stepDone(view, s.id);
+            return (
+              <li key={s.id}>
+                <button onClick={() => nav(`setup/${s.id}`)} className="focus-ring flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-sm hover:bg-stone-50">
+                  <span className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${ok ? "bg-brand-600 text-white" : s.id === next ? "bg-brand-100 text-brand-800" : "bg-stone-100 text-soft"}`}>
+                    {ok ? <Check className="size-3.5" /> : i + 1}
+                  </span>
+                  <span className={ok ? "text-muted" : "font-medium"}>{hi ? s.hi : s.en}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+        {next ? (
+          <Button className="w-full sm:w-auto" onClick={() => nav(`setup/${next}`)}>
+            {t("home.continueSetup", "Continue: {{step}}", { step: hi ? STEPS.find((s) => s.id === next)!.hi : STEPS.find((s) => s.id === next)!.en })} <ArrowRight className="size-4" />
+          </Button>
+        ) : (
+          <Button className="w-full sm:w-auto" onClick={() => nav("claims")}>
+            {t("home.openPlan", "Open your claim plan")} <ArrowRight className="size-4" />
+          </Button>
+        )}
       </Card>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -15,8 +15,8 @@ export default function AskPage() {
   const [params] = useSearchParams();
   const assetId = params.get("asset") || "";
   const asset = (view.assets as any[]).find((a) => a.assetId === assetId);
-  const [mode, setMode] = useState<"explain" | "web">(asset ? "explain" : "web");
-  const [q, setQ] = useState("");
+  const [mode, setMode] = useState<"explain" | "web">(params.get("mode") === "web" ? "web" : asset ? "explain" : "web");
+  const [q, setQ] = useState(params.get("q") || "");
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
@@ -105,7 +105,7 @@ export default function AskPage() {
                   ))}
                 </div>
               )}
-              <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{m.text}</p>
+              <Answer text={m.text} />
               {m.fallback && <Chip tone="amber">{t("ask.fallback", "AI unavailable: showing the rule text")}</Chip>}
               {m.note && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">{m.note}</p>}
               {m.citations && m.citations.length > 0 && (
@@ -139,6 +139,46 @@ export default function AskPage() {
           <SendHorizonal className="size-5" />
         </button>
       </form>
+    </div>
+  );
+}
+
+/** The model writes light markdown (bold, bullets). Render just that, as text nodes: no HTML injection. */
+function Answer({ text }: { text: string }) {
+  const inline = (line: string) =>
+    line.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+      part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : <span key={i}>{part}</span>,
+    );
+  const blocks: { list: boolean; lines: string[] }[] = [];
+  for (const raw of (text || "").split("\n")) {
+    const line = raw.trimEnd();
+    const bullet = /^\s*([-*•]|\d+[.)])\s+/.test(line);
+    const body = line.replace(/^\s*([-*•]|\d+[.)])\s+/, "");
+    const last = blocks[blocks.length - 1];
+    if (!line.trim()) blocks.push({ list: false, lines: [] });
+    else if (last && last.list === bullet && (bullet || last.lines.length)) last.lines.push(body);
+    else blocks.push({ list: bullet, lines: [body] });
+  }
+  return (
+    <div className="space-y-2 text-[15px] leading-relaxed">
+      {blocks
+        .filter((b) => b.lines.length)
+        .map((b, i) =>
+          b.list ? (
+            <ul key={i} className="list-disc space-y-1 pl-5">
+              {b.lines.map((l, j) => (
+                <li key={j}>{inline(l)}</li>
+              ))}
+            </ul>
+          ) : (
+            <p key={i}>{b.lines.map((l, j) => (
+              <span key={j}>
+                {j > 0 && <br />}
+                {inline(l)}
+              </span>
+            ))}</p>
+          ),
+        )}
     </div>
   );
 }

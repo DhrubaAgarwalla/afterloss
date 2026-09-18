@@ -54,3 +54,10 @@ body:lang(hi) {
 .pulse-soft {
   animation: pulse-soft 1.6s ease-in-out infinite;
 }
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

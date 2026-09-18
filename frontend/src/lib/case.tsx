@@ -75,7 +75,11 @@ export const ASSET_TYPES: Record<string, { en: string; hi: string }> = {
   pmsby: { en: "PMSBY cover", hi: "पीएमएसबीवाई बीमा" },
   mutual_fund: { en: "Mutual funds", hi: "म्यूचुअल फंड" },
   shares: { en: "Shares / demat", hi: "शेयर / डीमैट" },
-  govt_scheme: { en: "Govt scheme (PPF, NPS…)", hi: "सरकारी योजना (पीपीएफ, एनपीएस…)" },
-  loan: { en: "Loan / card (liability)", hi: "ऋण / कार्ड (देनदारी)" },
+  nps: { en: "NPS pension account", hi: "एनपीएस पेंशन खाता" },
+  ppf: { en: "PPF account", hi: "पीपीएफ खाता" },
+  post_office: { en: "Post office savings", hi: "डाकघर बचत" },
+  govt_scheme: { en: "Govt scheme (APY, SSY…)", hi: "सरकारी योजना (एपीवाई, एसएसवाई…)" },
+  credit_card: { en: "Credit card (liability)", hi: "क्रेडिट कार्ड (देनदारी)" },
+  loan: { en: "Loan (liability)", hi: "ऋण (देनदारी)" },
   other: { en: "Other", hi: "अन्य" },
 };

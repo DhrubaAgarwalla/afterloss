@@ -69,7 +69,7 @@ export default function CasesPage({ email, onSignOut }: { email: string; onSignO
           ))}
         </div>
       </main>
-      <NewCaseModal open={open} onClose={() => setOpen(false)} onCreated={(id) => nav(`/cases/${id}`)} />
+      <NewCaseModal open={open} onClose={() => setOpen(false)} onCreated={(id) => nav(`/cases/${id}/setup/about`)} />
     </div>
   );
 }
