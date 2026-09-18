@@ -29,7 +29,7 @@ LEAD_TYPES = {
     "govt_scheme": {"asset_type": "govt_scheme", "en": "Government savings / pension scheme", "hi": "सरकारी बचत / पेंशन योजना"},
     "deposit": {"asset_type": "term_deposit", "en": "Fixed / recurring deposit", "hi": "सावधि / आवर्ती जमा"},
     "loan": {"asset_type": "loan", "en": "Loan (liability) — check if insured", "hi": "ऋण (देनदारी) — बीमा जांचें"},
-    "credit_card": {"asset_type": "loan", "en": "Credit card (liability)", "hi": "क्रेडिट कार्ड (देनदारी)"},
+    "credit_card": {"asset_type": "credit_card", "en": "Credit card (liability)", "hi": "क्रेडिट कार्ड (देनदारी)"},
     "employer": {"asset_type": "epf", "en": "Employer: PF, gratuity, group insurance", "hi": "नियोक्ता: पीएफ, ग्रेच्युटी, समूह बीमा"},
     "pension": {"asset_type": "other", "en": "Pension being received", "hi": "प्राप्त हो रही पेंशन"},
 }
@@ -266,6 +266,8 @@ def classify(t: Txn, stmt: Statement) -> tuple[str, str, str, str] | None:
     return None
 
 
+SCHEME_TYPES = (("NPS", "nps"), ("PPF", "ppf"), ("Post office", "post_office"), ("Senior Citizens", "post_office"))
+
 SIGNALS = {  # pattern -> what the matched entries look like (en, hi)
     "PMJJBY": ("PMJJBY premium", "PMJJBY प्रीमियम"),
     "PMSBY": ("PMSBY premium", "PMSBY प्रीमियम"),
@@ -364,6 +366,8 @@ def detect_leads(stmt: Statement, case_key: str = "") -> tuple[list[Lead], list[
     out = []
     for lead in leads.values():
         lead.reason = _reason(lead, _pattern_note(lead.evidence) == "recurring")
+        if lead.type == "govt_scheme":  # each scheme has its own claim playbook
+            lead.asset_type = next((t for key, t in SCHEME_TYPES if key in lead.institution), "govt_scheme")
         facts: dict = {"asset_type": lead.asset_type, "institution": lead.institution}
         if lead.type == "deposit":
             facts["bank_type"] = "cooperative" if any(

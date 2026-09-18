@@ -96,12 +96,26 @@ def deposit_compensation(
         "rate_pct": rate_pct,
         "compensation_inr": interest,
         "status": status,
-        "formula": f"{float(amount):,.2f} × {rate_pct}% × {delay_days}/365",
+        "formula": f"₹{indian(float(amount))} × {rate_pct}% × {delay_days}/365",
         "citation": _citation(comp["para"], comp["quote"]),
         "reference_citation": _citation(comp["para"], comp["reference_quote"]),
         "clock_citation": _citation(clock["para"], clock["quote"]),
         "attributable_to_bank_only": True,
     }
+
+
+def indian(v: float) -> str:
+    """3,20,000 (Indian grouping); paise only when there are any."""
+    whole, frac = f"{float(v):.2f}".split(".")
+    head, tail = whole[:-3], whole[-3:]
+    groups = []
+    while len(head) > 2:
+        groups.insert(0, head[-2:])
+        head = head[:-2]
+    if head:
+        groups.insert(0, head)
+    out = ",".join(groups + [tail]) if groups else tail
+    return out if frac == "00" else f"{out}.{frac}"
 
 
 def locker_compensation(
@@ -126,7 +140,7 @@ def locker_compensation(
         "per_day_inr": comp["amount_inr"],
         "compensation_inr": float(amount),
         "status": "on_time" if delay_days == 0 and communicated_on else ("late" if delay_days > 0 else "running"),
-        "formula": f"₹{comp['amount_inr']:,} × {delay_days} days",
+        "formula": f"₹{indian(comp['amount_inr'])} × {delay_days} day{'' if delay_days == 1 else 's'}",
         "citation": _citation(comp["para"], comp["quote"]),
         "clock_citation": _citation(clock["para"], clock["quote"]),
     }

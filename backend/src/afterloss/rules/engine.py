@@ -21,8 +21,8 @@ DATA_DIR = Path(__file__).parent / "data"
 BANK_ASSETS = {"bank_deposit", "term_deposit"}
 LOCKER_ASSETS = {"locker", "safe_custody"}
 OTHER_ASSETS = {
-    "epf", "life_insurance", "pmjjby", "pmsby", "mutual_fund", "shares",
-    "govt_scheme", "loan", "other",
+    "epf", "life_insurance", "pmjjby", "pmsby", "mutual_fund", "shares", "nps", "ppf", "post_office",
+    "govt_scheme", "credit_card", "loan", "other",
 }
 ASSET_TYPES = BANK_ASSETS | LOCKER_ASSETS | OTHER_ASSETS
 BANK_TYPES = {"cooperative", "commercial"}
@@ -39,6 +39,11 @@ QUESTIONS = {
         "fact": "amount",
         "en": "Roughly how much is in it, including interest?",
         "hi": "इसमें ब्याज सहित लगभग कितनी राशि है?",
+    },
+    "value": {
+        "fact": "amount",
+        "en": "Roughly how much is it worth today?",
+        "hi": "आज इसका लगभग कितना मूल्य है?",
     },
     "bank_type": {
         "fact": "bank_type",
@@ -96,9 +101,19 @@ class RouteResult:
     where: str | None = None
     url: str | None = None
     verified: bool = True
+    steps: list[dict] = field(default_factory=list)
+    timeline: dict | None = None
+    sources: list[dict] = field(default_factory=list)
+    variant: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+@lru_cache(maxsize=1)
+def load_guides() -> dict:
+    with open(DATA_DIR / "guides.json", encoding="utf-8") as fh:
+        return json.load(fh)
 
 
 @lru_cache(maxsize=1)
@@ -172,6 +187,9 @@ def _documents(rule: dict, book: dict, facts: Facts) -> tuple[list[dict], list[s
                 "hi": "सक्षम प्राधिकारी द्वारा जारी कानूनी वारिस प्रमाण पत्र",
             }
         spec["id"] = doc_id
+        guide = load_guides()["rbiDocs"].get(doc_id)
+        if guide:
+            spec["guide"] = guide
         docs.append(spec)
         form = spec.get("form")
         if form and not spec.get("at_branch") and form not in forms:
@@ -247,17 +265,66 @@ def _evaluate_rbi(facts: Facts, book: dict) -> RouteResult:
     raise RuntimeError(f"no rule matched {facts}")  # the rule set is exhaustive; tests guard this
 
 
+def _variant_matches(when: dict, facts: Facts) -> bool | None:
+    """True / False, or None when a fact the variant depends on is unknown."""
+    unknown = False
+    if "nomination" in when:
+        if facts.nomination == "unknown":
+            unknown = True
+        elif facts.nomination not in when["nomination"]:
+            return False
+    for key in ("amount_lte", "amount_gt"):
+        if key in when:
+            if facts.amount is None:
+                unknown = True
+                continue
+            amount = float(facts.amount)
+            if key == "amount_lte" and not amount <= when[key]:
+                return False
+            if key == "amount_gt" and not amount > when[key]:
+                return False
+    return None if unknown else True
+
+
 def _evaluate_other(facts: Facts, other: dict) -> RouteResult:
     spec = other["routes"].get(facts.asset_type) or other["routes"]["other"]
+    missing: dict[str, dict] = {}
+    chosen = None
+    for v in spec["variants"]:
+        ok = _variant_matches(v.get("when", {}), facts)
+        if ok:
+            chosen = v
+            break
+        if ok is None:
+            when = v.get("when", {})
+            if "nomination" in when and facts.nomination == "unknown":
+                missing["nomination"] = QUESTIONS["nomination"]
+            if ("amount_lte" in when or "amount_gt" in when) and facts.amount is None:
+                missing["value"] = QUESTIONS["value"]
+    if chosen is None:
+        return RouteResult(
+            route="NEEDS_INFO", rule_id=None, automation="needs_info",
+            title={"en": "A few answers needed to pick the right process",
+                   "hi": "सही प्रक्रिया चुनने के लिए कुछ जवाब चाहिए"},
+            missing=list(missing.values()), where=spec.get("where"), url=spec.get("url"),
+            verified=bool(spec.get("verified", False)), sources=spec.get("sources", []),
+        )
+    steps = chosen.get("steps", [])
     return RouteResult(
         route=spec["route"],
-        rule_id=f"OTHER_{facts.asset_type.upper()}",
+        rule_id=f"OTHER_{facts.asset_type.upper()}_{chosen['id'].upper()}",
         automation="checklist",
-        title=spec["title"],
-        checklist=spec["checklist"],
+        title=chosen.get("title") or spec["title"],
+        documents=chosen.get("documents", []),
+        forms=[d["form"] for d in chosen.get("documents", []) if d.get("form")],
+        checklist=steps,
+        steps=steps,
         where=spec.get("where"),
         url=spec.get("url"),
         verified=bool(spec.get("verified", False)),
+        timeline=spec.get("timeline"),
+        sources=spec.get("sources", []),
+        variant=chosen["id"],
     )
 
 

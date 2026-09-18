@@ -125,22 +125,52 @@ def test_locker_will_and_dispute():
 
 # ---------- other assets ----------
 
-@pytest.mark.parametrize("asset,expected", [
-    ("epf", "EPF_DEATH_CLAIM"),
-    ("life_insurance", "INSURANCE_DEATH_CLAIM"),
-    ("pmjjby", "PMJJBY_CLAIM"),
-    ("pmsby", "PMSBY_CLAIM"),
-    ("mutual_fund", "MF_TRANSMISSION"),
-    ("shares", "SHARES_TRANSMISSION"),
-    ("govt_scheme", "GOVT_SCHEME_CLAIM"),
-    ("loan", "LIABILITY_CHECK"),
-    ("other", "GENERIC"),
+@pytest.mark.parametrize("facts,expected,variant", [
+    ({"asset_type": "epf"}, "EPFO_DEATH_CLAIM", "family"),
+    ({"asset_type": "life_insurance", "nomination": "nominee"}, "INSURANCE_DEATH_CLAIM", "nominee"),
+    ({"asset_type": "life_insurance", "nomination": "none"}, "INSURANCE_DEATH_CLAIM", "heirs"),
+    ({"asset_type": "pmjjby"}, "PMJJBY_CLAIM", "nominee"),
+    ({"asset_type": "pmsby"}, "PMSBY_CLAIM", "nominee"),
+    ({"asset_type": "mutual_fund", "nomination": "nominee"}, "MF_TRANSMISSION", "nominee"),
+    # AMFI BPG circular 110: up to Rs 5 lakh / 5-10 lakh / above 10 lakh at PAN level
+    ({"asset_type": "mutual_fund", "nomination": "none", "amount": 500000}, "MF_TRANSMISSION", "heirs_small"),
+    ({"asset_type": "mutual_fund", "nomination": "none", "amount": 500001}, "MF_TRANSMISSION", "heirs_mid"),
+    ({"asset_type": "mutual_fund", "nomination": "none", "amount": 1000001}, "MF_TRANSMISSION", "heirs_large"),
+    # SEBI FAQ Q72: up to Rs 15 lakh per demat account without court papers
+    ({"asset_type": "shares", "nomination": "none", "amount": 1500000}, "SECURITIES_TRANSMISSION", "heirs_small"),
+    ({"asset_type": "shares", "nomination": "none", "amount": 1500001}, "SECURITIES_TRANSMISSION", "heirs_large"),
+    # Government Savings Promotion General Rules 2018, rule 15: Rs 5 lakh without legal evidence
+    ({"asset_type": "post_office", "nomination": "none", "amount": 450000}, "SMALL_SAVINGS_CLAIM", "heirs_small"),
+    ({"asset_type": "ppf", "nomination": "nominee"}, "SMALL_SAVINGS_CLAIM", "nominee"),
+    ({"asset_type": "nps", "nomination": "none"}, "NPS_DEATH_CLAIM", "heirs"),
+    ({"asset_type": "govt_scheme"}, "SMALL_SAVINGS_CLAIM", "general"),
+    ({"asset_type": "credit_card"}, "LIABILITY_CARD", "inform"),
+    ({"asset_type": "loan"}, "LIABILITY_LOAN", "inform"),
+    ({"asset_type": "other"}, "OTHER_CHECKLIST", "general"),
 ])
-def test_checklist_routes(asset, expected):
-    r = route(asset_type=asset)
-    assert r.route == expected
-    assert r.automation == "checklist"
-    assert r.checklist
+def test_playbook_routes(facts, expected, variant):
+    r = route(**facts)
+    assert (r.route, r.variant) == (expected, variant)
+    assert r.automation == "checklist" and r.steps and r.documents and r.sources
+    assert all(d.get("guide") or d.get("form") for d in r.documents)
+
+
+def test_playbooks_ask_for_missing_facts():
+    r = route(asset_type="mutual_fund", nomination="unknown")
+    assert r.route == "NEEDS_INFO" and {q["fact"] for q in r.missing} == {"nomination", "amount"}
+    r = route(asset_type="shares", nomination="none")
+    assert r.route == "NEEDS_INFO" and [q["fact"] for q in r.missing] == ["amount"]
+
+
+def test_every_guide_link_resolves():
+    from afterloss.rules import load_guides, load_rulebook
+    guides = load_guides()["guides"]
+    for spec in load_rulebook()["other"]["routes"].values():
+        for v in spec["variants"]:
+            for d in v["documents"]:
+                assert not d.get("guide") or d["guide"] in guides, d
+    for g in load_guides()["rbiDocs"].values():
+        assert g in guides
 
 
 def test_bad_inputs_are_rejected():
