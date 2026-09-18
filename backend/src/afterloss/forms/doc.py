@@ -220,8 +220,9 @@ class Doc:
                 self.c.drawString(x + 6, self.y - box_h + 7, f"{role}{extra}"[:80])
             self.y -= box_h + 10
 
-    def image_page(self, label: str, data: bytes, note: str = "") -> None:
-        self.new_page()
+    def image_page(self, label: str, data: bytes, note: str = "", new: bool = True) -> None:
+        if new:
+            self.new_page()
         self.title(label, note or None)
         img = ImageReader(io.BytesIO(data))
         iw, ih = img.getSize()

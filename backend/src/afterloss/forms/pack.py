@@ -3,6 +3,11 @@ from __future__ import annotations
 
 from datetime import date
 
+import io
+
+from pypdf import PdfReader, PdfWriter
+
+from . import official
 from .annex import RENDERERS, annex_I_E
 from .doc import AMBER, AMBER_TINT, Doc, rupees
 
@@ -58,9 +63,32 @@ def _cover(d: Doc, ctx: dict) -> None:
                color=AMBER, fill=AMBER_TINT)
 
 
-def build_pack(ctx: dict, attachments: list[dict] | None = None) -> bytes:
+def build_pack(ctx: dict, attachments: list[dict] | None = None, official_forms: bool = True) -> bytes:
     """ctx: case, asset, route (engine RouteResult dict), claimants, nonClaimants, nominees,
-    declarant, payment, brand. attachments: [{label, image: bytes}] (already masked)."""
+    declarant, payment, brand. attachments: [{label, image: bytes}] (already masked).
+
+    The RBI annexes are printed on the official form pages (forms/official.py). The reportlab
+    re-typesetting in annex.py remains as a fallback when the template isn't available."""
+    forms = list(ctx["route"].get("forms") or [])
+    if official_forms and forms and official.available():
+        brand = ctx.get("brand", {}).get("appName", "AfterLoss")
+        footer = f"{brand} claim pack · {ctx['asset'].get('institution') or ''} · Not legal advice; verify with the bank."
+        cover = Doc(footer=footer)
+        _cover(cover, ctx)
+        surety = any(d.get("id") == "surety_I_C_if_asked" for d in ctx["route"].get("documents") or [])
+        parts = [cover.finish(), official.fill(forms, ctx, with_surety=surety)]
+        if attachments:
+            att = Doc(footer=footer)
+            for i, a in enumerate(attachments):
+                att.image_page(a.get("label", "Attachment"), a["image"], a.get("note", ""), new=i > 0)
+            parts.append(att.finish())
+        out = PdfWriter()
+        for part in parts:
+            for page in PdfReader(io.BytesIO(part)).pages:
+                out.add_page(page)
+        buf = io.BytesIO()
+        out.write(buf)
+        return buf.getvalue()
     brand = ctx.get("brand", {}).get("appName", "AfterLoss")
     d = Doc(footer=f"{brand} claim pack · {ctx['asset'].get('institution') or ''} · Not legal advice; verify with the bank.")
     _cover(d, ctx)

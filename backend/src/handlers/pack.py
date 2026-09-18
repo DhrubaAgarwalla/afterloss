@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from afterloss.app import service as svc
 from afterloss.app.service import ApiError
 from afterloss.aws import files
-from afterloss.forms import build_pack
+from afterloss.forms import build_claim_letter_pack, build_pack
 from afterloss.rules.engine import BANK_ASSETS, LOCKER_ASSETS
 
 from .api import deps
@@ -41,8 +41,7 @@ def build(event):
     svc.require(authz, email, "EditCase", cd)
     asset = cd.asset(params(event)["assetId"])
     route = asset.get("route") or {}
-    if asset.get("assetType") not in BANK_ASSETS | LOCKER_ASSETS:
-        raise ApiError(400, "This asset has a checklist instead of RBI bank forms.", "checklist_only")
+    bank = asset.get("assetType") in BANK_ASSETS | LOCKER_ASSETS
     if route.get("route") == "NEEDS_INFO":
         raise ApiError(400, "Answer the open questions for this claim first.", "not_ready")
     if not any(p.get("isClaimant") or p.get("isNominee") for p in cd.people):
@@ -56,7 +55,8 @@ def build(event):
                 attachments.append({"label": f"{LABELS[d['kind']]}: {d.get('filename')}", "image": img})
             else:
                 skipped.append(d.get("filename"))
-    pdf = build_pack(svc.pack_context(cd, asset), attachments)
+    ctx = svc.pack_context(cd, asset)
+    pdf = build_pack(ctx, attachments) if bank else build_claim_letter_pack(ctx, attachments)
     ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     inst = (asset.get("institution") or "bank").replace(" ", "-")[:40]
     key = f"cases/{cd.case_id}/packs/{asset['assetId']}-{ts}.pdf"
@@ -66,8 +66,9 @@ def build(event):
     if asset.get("status") in {"ready", "draft"}:
         fields["status"] = "pack_ready"
     store.update(svc.pk(cd.case_id), asset["SK"], fields)
+    what = f"{len(route.get('forms') or [])} RBI form(s) on the official format" if bank else "plan and pre-filled claim letter"
     svc.add_event(store, cd.case_id, "pack", f"Claim pack ready for {asset.get('institution')} "
-                  f"({len(route.get('forms') or [])} RBI form(s), {len(attachments)} attachment(s)).", email,
+                  f"({what}, {len(attachments)} attachment(s)).", email,
                   asset["assetId"], text_hi=f"{asset.get('institution')} के लिए दावा पैक तैयार।")
     from pypdf import PdfReader
 

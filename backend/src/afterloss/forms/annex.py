@@ -75,12 +75,24 @@ def _locker_lines(d: Doc, ctx: dict) -> None:
         d.field("c. Safe Custody Article Receipt No.", _v(a.get("receiptNo")), label_w=220)
 
 
+def payee_account(p: dict, payment: dict, first: bool) -> dict:
+    """The claimant's own account if entered, else the case-level payment account for the first claimant."""
+    if p.get("bankAccountNumber"):
+        return {"bankName": p.get("bankName", ""), "accountNumber": p.get("bankAccountNumber", ""),
+                "ifsc": p.get("bankIfsc", ""), "branch": p.get("bankBranch", "")}
+    if first and payment.get("accountNumber"):
+        return {"bankName": payment.get("bankName", ""), "accountNumber": payment.get("accountNumber", ""),
+                "ifsc": payment.get("ifsc", ""), "branch": payment.get("branch", "")}
+    return {}
+
+
 def _payment_rows(people: list[dict], payment: dict) -> list[list[str]]:
     rows = []
     for i, p in enumerate(people[:4], 1):
-        acct = " ".join(x for x in [payment.get("bankName"), payment.get("accountNumber")] if x) if i == 1 else ""
+        a = payee_account(p, payment, i == 1)
+        acct = " ".join(x for x in [a.get("bankName"), a.get("accountNumber")] if x)
         rows.append([str(i), p.get("fullName", ""), p.get("address", ""), p.get("phone", ""), p.get("email", ""),
-                     " / ".join(x for x in [acct, payment.get("ifsc") if i == 1 else ""] if x)])
+                     " / ".join(x for x in [acct, a.get("ifsc")] if x)])
     return rows
 
 
@@ -205,9 +217,16 @@ def annex_I_B(d: Doc, ctx: dict) -> None:
     d.para("5.1 I/ We request the bank to transfer the balance payable (after making the required adjustments, set-off, if "
            "any) to the account of claimant(s) given below:")
     pay = ctx.get("payment") or {}
-    d.table(["Sr.", "Name of Claimant", "Bank Name and A/c No.", "IFSC", "Branch Details"],
-            [["1", pay.get("accountHolder") or (claimants[0].get("fullName", "") if claimants else ""),
-              " ".join(x for x in [pay.get("bankName"), pay.get("accountNumber")] if x), pay.get("ifsc", ""), ""]],
+    rows = []
+    for i, p in enumerate(claimants[:4], 1):
+        a = payee_account(p, pay, i == 1)
+        if a:
+            rows.append([str(i), p.get("fullName", ""), " ".join(x for x in [a.get("bankName"), a.get("accountNumber")] if x),
+                         a.get("ifsc", ""), a.get("branch", "")])
+    if not rows:
+        rows = [["1", pay.get("accountHolder") or (claimants[0].get("fullName", "") if claimants else ""),
+                 " ".join(x for x in [pay.get("bankName"), pay.get("accountNumber")] if x), pay.get("ifsc", ""), ""]]
+    d.table(["Sr.", "Name of Claimant", "Bank Name and A/c No.", "IFSC", "Branch Details"], rows,
             [26, 140, 150, 90, 93], size=8.5)
     d.para("6. I/ We have attached the following documents for the purpose of settlement of my/ our claim:")
     docs = [("Death certificate (of deceased customer)", True),
