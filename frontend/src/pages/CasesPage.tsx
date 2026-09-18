@@ -23,17 +23,17 @@ export default function CasesPage({ email, onSignOut }: { email: string; onSignO
   return (
     <div className="min-h-screen">
       <header className="border-b border-line bg-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-5 py-3">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-2 px-4 py-3 sm:px-5">
           <span className="text-lg font-semibold text-brand-800">{i18n.language === "hi" ? brand.appNameHi : brand.appName}</span>
           <div className="flex items-center gap-2">
             <LangToggle />
-            <Button variant="ghost" size="sm" icon={<LogOut className="size-4" />} onClick={onSignOut}>
-              {t("signOut", "Sign out")}
+            <Button variant="ghost" size="sm" icon={<LogOut className="size-4" />} onClick={onSignOut} aria-label={t("signOut", "Sign out")}>
+              <span className="hidden sm:inline">{t("signOut", "Sign out")}</span>
             </Button>
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-4xl px-5 py-8">
+      <main className="mx-auto max-w-4xl px-4 py-6 sm:px-5 sm:py-8">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold">{t("cases.title", "Your family cases")}</h1>

@@ -81,6 +81,16 @@ def call(tok, method, path, body=None, expect=None):
     return status, out
 
 
+def ask(tok, body):
+    """POST /assistant starts a job; poll GET /assistant/{jobId} until the answer is saved."""
+    s, r = call(tok, "POST", "/assistant", body)
+    end = time.time() + 120
+    while s in (200, 202) and r.get("status") == "pending" and time.time() < end:
+        time.sleep(1.5)
+        s, r = call(tok, "GET", f"/assistant/{r['jobId']}")
+    return s, r
+
+
 def put_file(url, data, ctype):
     req = urllib.request.Request(url, data=data, method="PUT")
     req.add_header("content-type", ctype)
@@ -212,11 +222,11 @@ def main():
         omb = [d for d in v.get("documents", []) if d["kind"] == "ombudsman"]
     check("escalated → RBI Ombudsman draft", bool(omb))
 
-    s, ans = call(tl, "POST", "/assistant", {"caseId": cid, "assetId": aid, "mode": "explain", "lang": "en",
+    s, ans = ask(tl, {"caseId": cid, "assetId": aid, "mode": "explain", "lang": "en",
                                            "question": "Why don't we need a succession certificate for this FD?"})
     check(f"assistant explain ({'fallback' if ans.get('fallback') else ans.get('model')})", s == 200 and ans.get("answer"), ans)
     print("    →", (ans.get("answer") or "")[:220].replace("\n", " "))
-    s, web = call(tl, "POST", "/assistant", {"caseId": cid, "mode": "web", "lang": "en",
+    s, web = ask(tl, {"caseId": cid, "mode": "web", "lang": "en",
                                            "question": "My father Ramesh Kumar Sharma (PAN ABCPS1234K) had ITC shares. How do we claim unpaid dividends from IEPF?"})
     check(f"assistant web grounding with {len(web.get('citations', []))} citations; removed {[r['type'] for r in web.get('removed', [])]}",
           s == 200 and web.get("citations") and "ABCPS1234K" not in web.get("askedAs", ""), web if s != 200 else "")

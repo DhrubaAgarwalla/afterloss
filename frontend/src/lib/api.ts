@@ -25,6 +25,19 @@ export async function api<T = any>(method: string, path: string, body?: unknown)
   return data as T;
 }
 
+/** Ask the assistant. The model runs as a background job (web search can outlast API Gateway's 30 s),
+ *  so we start it, then poll until the answer is saved. */
+export async function askAssistant(body: Record<string, unknown>, timeoutMs = 120_000): Promise<any> {
+  const started = Date.now();
+  let r: any = await api("POST", "/assistant", body);
+  while (r.status === "pending") {
+    if (Date.now() - started > timeoutMs) throw new Error("The answer is taking too long. Please try again.");
+    await new Promise((ok) => setTimeout(ok, 1500));
+    r = await api("GET", `/assistant/${r.jobId}`);
+  }
+  return r;
+}
+
 /** Upload a file straight to S3 through a 5-minute presigned URL, then (optionally) process it. */
 export async function uploadDocument(
   caseId: string,

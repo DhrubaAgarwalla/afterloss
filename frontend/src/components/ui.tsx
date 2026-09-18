@@ -1,4 +1,4 @@
-import { type ButtonHTMLAttributes, type ReactNode, useState } from "react";
+import { type ButtonHTMLAttributes, type ReactNode, useEffect, useState } from "react";
 import { Check, Copy, ExternalLink, Loader2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -24,8 +24,8 @@ export function Button({
   return (
     <button
       className={`focus-ring inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-colors disabled:cursor-not-allowed ${v} ${s} ${className}`}
-      disabled={loading || rest.disabled}
       {...rest}
+      disabled={loading || rest.disabled}
     >
       {loading ? <Loader2 className="size-4 animate-spin" /> : icon}
       {children}
@@ -136,6 +136,13 @@ export function Citation({ para, quote, url, title }: { para?: string; quote?: s
 }
 
 export function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+  const { t } = useTranslation();
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" onClick={onClose}>
@@ -148,7 +155,7 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">{title}</h2>
-          <button className="focus-ring rounded-lg p-1 text-muted hover:bg-stone-100" onClick={onClose} aria-label="Close">
+          <button className="focus-ring rounded-lg p-1 text-muted hover:bg-stone-100" onClick={onClose} aria-label={t("close", "Close")}>
             <X className="size-5" />
           </button>
         </div>

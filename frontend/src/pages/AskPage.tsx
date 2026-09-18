@@ -2,11 +2,11 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { BadgeCheck, Globe2, Lightbulb, SendHorizonal, ShieldCheck } from "lucide-react";
-import { api } from "../lib/api";
+import { askAssistant } from "../lib/api";
 import { useCase } from "../lib/case";
 import { Card, Chip, inputCls } from "../components/ui";
 
-type Msg = { role: "user" | "bot"; text: string; citations?: any[]; removed?: any[]; askedAs?: string; mode?: string; fallback?: boolean };
+type Msg = { role: "user" | "bot"; text: string; citations?: any[]; removed?: any[]; askedAs?: string; mode?: string; fallback?: boolean; note?: string };
 
 export default function AskPage() {
   const { t, i18n } = useTranslation();
@@ -21,7 +21,10 @@ export default function AskPage() {
   const [busy, setBusy] = useState(false);
   const end = useRef<HTMLDivElement>(null);
 
-  useEffect(() => end.current?.scrollIntoView({ behavior: "smooth" }), [msgs, busy]);
+  // Braces matter: newer Chrome returns a Promise from scrollIntoView, and React would call it as a cleanup.
+  useEffect(() => {
+    end.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs, busy]);
 
   const examples =
     mode === "web"
@@ -42,8 +45,8 @@ export default function AskPage() {
     setQ("");
     setBusy(true);
     try {
-      const r: any = await api("POST", "/assistant", { caseId, assetId: mode === "explain" ? assetId : "", question: text, mode, lang });
-      setMsgs((m) => [...m, { role: "bot", text: r.answer, citations: r.citations, removed: r.removed, askedAs: r.askedAs, mode: r.mode, fallback: r.fallback }]);
+      const r = await askAssistant({ caseId, assetId: mode === "explain" ? assetId : "", question: text, mode, lang });
+      setMsgs((m) => [...m, { role: "bot", text: r.answer, citations: r.citations, removed: r.removed, askedAs: r.askedAs, mode: r.mode, fallback: r.fallback, note: r.note }]);
     } catch (e: any) {
       setMsgs((m) => [...m, { role: "bot", text: e?.message ?? String(e) }]);
     } finally {
@@ -104,6 +107,7 @@ export default function AskPage() {
               )}
               <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{m.text}</p>
               {m.fallback && <Chip tone="amber">{t("ask.fallback", "AI unavailable: showing the rule text")}</Chip>}
+              {m.note && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">{m.note}</p>}
               {m.citations && m.citations.length > 0 && (
                 <div className="space-y-1.5 border-t border-line pt-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-soft">{t("ask.sources", "Sources")}</p>
@@ -119,7 +123,7 @@ export default function AskPage() {
             </Card>
           ),
         )}
-        {busy && <Card className="max-w-[60%] text-sm text-muted pulse-soft">{mode === "web" ? t("ask.searching", "Searching official sources…") : t("ask.thinking", "Thinking…")}</Card>}
+        {busy && <Card className="max-w-[60%] text-sm text-muted pulse-soft">{mode === "web" ? t("ask.searching", "Searching official sources… this can take up to a minute.") : t("ask.thinking", "Thinking…")}</Card>}
         <div ref={end} />
       </div>
 
@@ -131,7 +135,7 @@ export default function AskPage() {
         className="sticky bottom-20 flex gap-2 rounded-2xl bg-white p-2 ring-1 ring-line md:bottom-4"
       >
         <input className={inputCls + " border-0"} placeholder={t("ask.placeholder", "Type your question…")} value={q} onChange={(e) => setQ(e.target.value)} />
-        <button type="submit" disabled={busy || !q.trim()} className="focus-ring flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-700 text-white disabled:opacity-50" aria-label="Send">
+        <button type="submit" disabled={busy || !q.trim()} className="focus-ring flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-700 text-white disabled:opacity-50" aria-label={t("ask.send", "Send")}>
           <SendHorizonal className="size-5" />
         </button>
       </form>
