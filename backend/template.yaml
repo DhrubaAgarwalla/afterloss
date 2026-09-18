@@ -16,6 +16,11 @@ Parameters:
   MonthlyBudgetUsd:
     Type: Number
     Default: 20
+  CreateSenderIdentity:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Create the SES identity for AlertEmail (skip if it is already verified in SES).
   ModelIdWeb:
     Type: String
     Default: us.amazon.nova-2-lite-v1:0
@@ -31,6 +36,7 @@ Parameters:
 
 Conditions:
   HasAlertEmail: !Not [!Equals [!Ref AlertEmail, ""]]
+  MakeSenderIdentity: !And [!Condition HasAlertEmail, !Equals [!Ref CreateSenderIdentity, "true"]]
 
 Globals:
   Function:
@@ -86,6 +92,7 @@ Resources:
           Projection: {ProjectionType: ALL}
       PointInTimeRecoverySpecification: {PointInTimeRecoveryEnabled: true}
       SSESpecification: {SSEEnabled: true}
+      TimeToLiveSpecification: {AttributeName: ttl, Enabled: true}
 
   DocsBucket:
     Type: AWS::S3::Bucket
@@ -361,10 +368,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: handlers.assistant.handler
-      Description: Nova 2 Lite explanations and Web Grounding answers behind a PII firewall
-      Timeout: 90
+      Description: Nova 2 Lite explanations and Web Grounding answers behind a PII firewall (async jobs)
+      Timeout: 120
       Policies:
         - DynamoDBCrudPolicy: {TableName: !Ref MainTable}
+        - Statement:
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-AssistantFunction-*"
         - Statement:
             - Effect: Allow
               Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
@@ -380,6 +391,7 @@ Resources:
               Resource: !GetAtt PolicyStore.Arn
       Events:
         Ask: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /assistant, Method: POST}}
+        Poll: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/assistant/{jobId}", Method: GET}}
 
   ClockFunction:
     Type: AWS::Serverless::Function
@@ -447,7 +459,7 @@ Resources:
 
   SenderIdentity:
     Type: AWS::SES::EmailIdentity
-    Condition: HasAlertEmail
+    Condition: MakeSenderIdentity
     Properties:
       EmailIdentity: !Ref AlertEmail
 

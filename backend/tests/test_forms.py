@@ -42,11 +42,14 @@ def test_simplified_pack_contains_all_forms_and_attachments():
     assert pdf[:5] == b"%PDF-"
     text = pdf_text(pdf)
     for needle in ["Claim pack: Nandini Sahakari Bank", "Annex I-B", "Annex I-C", "Annex I-D", "Annex I-E",
-                   "para 10(a)", "Arjun Sharma", "without any penal charge", "Death certificate", "Page 1 of"]:
+                   "para 10(a)", "Arjun Sharma", "Stamp Act", "not related in any manner", "fiduciary capacity",
+                   "Surety is applicable only in case of claims above the threshold limit", "Death certificate",
+                   "Page 1 of"]:
         assert needle in text, needle
     assert "Annex I-A" not in text
     reader = PdfReader(io.BytesIO(pdf))
-    assert len(reader.pages) >= 6
+    assert len(reader.pages) >= 7
+    assert text.count("LETTER OF DISCLAIMER") == 1  # one I-D letter lists every non-claimant heir
 
 
 def test_nominee_pack_is_only_I_A():

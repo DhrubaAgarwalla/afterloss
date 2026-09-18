@@ -19,10 +19,15 @@ DOC_KINDS = {"statement", "death_certificate", "id_proof", "acknowledgement", "p
 ASSET_FIELDS = {
     "assetType", "institution", "branch", "bankType", "nomination", "amount", "will", "dispute", "courtOrder",
     "joint", "legalHeirCertificate", "accountNumbers", "accountType", "nameAsPerBank", "notes",
+    "maturityDate", "lockerNo", "receiptNo",
 }
+DECEASED_FIELDS = (
+    "placeOfDeath", "deathCertNo", "deathCertDate", "deathCertAuthority", "maritalStatus", "deceasedAddress",
+    "religion", "successionLaw",
+)
 PERSON_FIELDS = {
     "fullName", "relation", "age", "address", "phone", "email", "idType", "idLast4", "isClaimant", "isNominee",
-    "isNonClaimantHeir", "isDeclarant", "yearsKnown",
+    "isNonClaimantHeir", "isDeclarant", "yearsKnown", "sdo",
 }
 
 
@@ -168,9 +173,9 @@ def my_cases(store, email: str) -> list[dict]:
 
 def update_case(store, cd: CaseData, body: dict) -> dict:
     fields = {}
-    for k in ("deceasedName", "dod", "dob", "relation"):
+    for k in ("deceasedName", "dod", "dob", "relation", *DECEASED_FIELDS):
         if k in body:
-            fields[k] = body[k]
+            fields[k] = str(body[k] or "")
     if "secondsPerDay" in body:
         fields["secondsPerDay"] = max(2, min(86400, int(body["secondsPerDay"])))
     if "payment" in body and isinstance(body["payment"], dict):
@@ -537,7 +542,8 @@ def pack_context(cd: CaseData, asset: dict) -> dict:
     non_claimants = [p for p in people if p.get("isNonClaimantHeir")]
     declarant = next((p for p in people if p.get("isDeclarant")), None)
     return {
-        "case": {"deceasedName": cd.meta.get("deceasedName"), "dod": cd.meta.get("dod"), "dob": cd.meta.get("dob")},
+        "case": {"deceasedName": cd.meta.get("deceasedName"), "dod": cd.meta.get("dod"), "dob": cd.meta.get("dob"),
+                 **{k: cd.meta.get(k, "") for k in DECEASED_FIELDS}},
         "asset": {**_clean(asset), "accountNumbers": asset.get("accountNumbers") or []},
         "route": asset.get("route") or {},
         "claimants": claimants or nominees,

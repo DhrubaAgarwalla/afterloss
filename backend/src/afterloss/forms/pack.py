@@ -8,7 +8,9 @@ from .doc import AMBER, AMBER_TINT, Doc, rupees
 
 STEPS = [
     "Check every pre-filled detail against the bank passbook and ID cards. Correct anything by hand if needed.",
-    "Each person signs in the box with their name. Non-claiming heirs sign their own Annex I-D page.",
+    "Each person signs where their name is printed. All non-claiming heirs sign the one Annex I-D letter.",
+    "Annex I-C, I-D and I-E must be stamped as per your State's Stamp Act (the official forms say so). Ask the branch "
+    "which stamp paper value they need.",
     "Self-attest each ID copy (sign across it). Carry the originals for verification.",
     "Submit at ANY branch of the bank: you don't have to go to the home branch (para 29).",
     "Ask for a dated acknowledgement. If a document is missing, the bank must list it while acknowledging (para 29).",

@@ -114,6 +114,8 @@ class Lead:
     reason: dict
     evidence: list[Evidence] = field(default_factory=list)
     count: int = 0
+    credits: int = 0
+    debits: int = 0
     total_inr: float = 0.0
     first_date: str | None = None
     last_date: str | None = None
@@ -241,7 +243,7 @@ def classify(t: Txn, stmt: Statement) -> tuple[str, str, str, str] | None:
     insurer, how_i = match("insurers", n)
     if insurer and (t.debit or has(MATURITY, n)):
         kind = "life_insurance" if insurer.get("kind") == "life" else "health_insurance"
-        return kind, insurer["name"], "high" if how_i == "exact" else "medium", "PREMIUM"
+        return kind, insurer["name"], "high" if how_i == "exact" else "medium", "PREMIUM" if t.debit else "MATURITY"
     if t.debit and has(PREMIUM, n):
         return "life_insurance", "Insurance policy (insurer not named)", "low", "PREMIUM"
 
@@ -262,6 +264,44 @@ def classify(t: Txn, stmt: Statement) -> tuple[str, str, str, str] | None:
             where = f"{bank} (another deposit)"
         return "deposit", where, "medium", "DEPOSIT"
     return None
+
+
+SIGNALS = {  # pattern -> what the matched entries look like (en, hi)
+    "PMJJBY": ("PMJJBY premium", "PMJJBY प्रीमियम"),
+    "PMSBY": ("PMSBY premium", "PMSBY प्रीमियम"),
+    "APY": ("Atal Pension Yojana contribution", "अटल पेंशन योजना अंशदान"),
+    "NPS": ("NPS contribution", "NPS अंशदान"),
+    "PPF": ("PPF deposit", "PPF जमा"),
+    "SSY": ("Sukanya Samriddhi deposit", "सुकन्या समृद्धि जमा"),
+    "SCSS": ("Senior Citizens' Savings Scheme", "वरिष्ठ नागरिक बचत योजना"),
+    "POST OFFICE": ("Post office savings", "डाकघर बचत"),
+    "DIVIDEND": ("Dividend", "लाभांश"),
+    "EMI": ("Loan EMI", "लोन की EMI"),
+    "CARD": ("Credit card payment", "क्रेडिट कार्ड भुगतान"),
+    "BROKER": ("Broker transfer", "ब्रोकर से लेन-देन"),
+    "SIP": ("Mutual fund SIP", "म्यूचुअल फंड SIP"),
+    "MF": ("Mutual fund payout", "म्यूचुअल फंड से भुगतान"),
+    "PREMIUM": ("Insurance premium", "बीमा प्रीमियम"),
+    "MATURITY": ("Policy maturity / survival benefit", "पॉलिसी मैच्योरिटी / सर्वाइवल बेनिफ़िट"),
+    "SALARY": ("Salary", "वेतन"),
+    "PENSION": ("Pension", "पेंशन"),
+    "DEPOSIT": ("FD / RD interest or instalment", "FD / RD ब्याज या किस्त"),
+}
+
+
+def _reason(lead: Lead, recurring: bool) -> dict:
+    """'Mutual fund SIP: 12 debits from 2025-09-05 to 2026-08-05, same amount each time'."""
+    en_sig, hi_sig = SIGNALS.get(lead.pattern or "", (lead.pattern or "Match", lead.pattern or "मेल"))
+    parts_en = [f"{n} {w}{'s' if n != 1 else ''}" for n, w in ((lead.credits, "credit"), (lead.debits, "debit")) if n]
+    parts_hi = [f"{n} {w}" for n, w in ((lead.credits, "क्रेडिट"), (lead.debits, "डेबिट")) if n]
+    if lead.first_date == lead.last_date:
+        when_en, when_hi = f"on {lead.first_date}", f"{lead.first_date} को"
+    else:
+        when_en, when_hi = f"from {lead.first_date} to {lead.last_date}", f"{lead.first_date} से {lead.last_date} तक"
+    return {
+        "en": f"{en_sig}: {' and '.join(parts_en)} {when_en}" + (", same amount each time" if recurring else ""),
+        "hi": f"{hi_sig}: {when_hi} {' और '.join(parts_hi)}" + (", हर बार एक ही राशि" if recurring else ""),
+    }
 
 
 def _lead_id(case_key: str, lead_type: str, institution: str) -> str:
@@ -310,6 +350,10 @@ def detect_leads(stmt: Statement, case_key: str = "") -> tuple[list[Lead], list[
         if order[confidence] > order[lead.confidence]:
             lead.confidence = confidence
         lead.count += 1
+        if t.credit:
+            lead.credits += 1
+        else:
+            lead.debits += 1
         lead.total_inr = round(lead.total_inr + t.amount, 2)
         lead.first_date = min(filter(None, [lead.first_date, t.date]))
         lead.last_date = max(filter(None, [lead.last_date, t.date]))
@@ -319,13 +363,7 @@ def detect_leads(stmt: Statement, case_key: str = "") -> tuple[list[Lead], list[
 
     out = []
     for lead in leads.values():
-        rec = _pattern_note(lead.evidence)
-        verb = "credits" if lead.evidence and lead.evidence[0].direction == "credit" else "debits"
-        lead.reason = {
-            "en": f"{lead.count} {verb} matching '{lead.pattern}' between {lead.first_date} and {lead.last_date}"
-                  + (" (same amount each time)" if rec == "recurring" else ""),
-            "hi": f"{lead.first_date} से {lead.last_date} के बीच '{lead.pattern}' से मेल खाती {lead.count} प्रविष्टियां",
-        }
+        lead.reason = _reason(lead, _pattern_note(lead.evidence) == "recurring")
         facts: dict = {"asset_type": lead.asset_type, "institution": lead.institution}
         if lead.type == "deposit":
             facts["bank_type"] = "cooperative" if any(
