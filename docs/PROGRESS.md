@@ -18,14 +18,16 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 | Frontend (React, EN/HI) | ✅ 8 screens, Hindi + English, PWA-ready, Capacitor config |
 | Deploy to AWS | ✅ Backend + website: https://d30k8rjq3ol5ah.cloudfront.net |
 | Assistant (Nova 2 Lite + Web Grounding) | ✅ live, with citations and PII firewall |
-| Demo data, README, video script | ⏳ |
+| Demo data, README, video script | ✅ sample statement, README, `docs/DEMO_SCRIPT.md` · ⏳ video |
 
 ## Needs from you
 
-- [ ] Finish `docs/SETUP.md` steps 1–4 (AWS account, admin user, CLI install, `aws login`)
-- [ ] Download the 9 RBI PDFs (SETUP step 8)
-- [ ] Tell me the email for notifications and the budget alert amount
+- [x] AWS account, admin user, CLI, `aws login` (done)
+- [ ] **Sign in once** on the live app in Claude's browser pane: https://d30k8rjq3ol5ah.cloudfront.net ("Create account", then the email code). I don't type passwords, so after that I test the signed-in screens in your session.
+- [ ] **Email for alerts:** turns on the $20 budget alarm, the error alarm and SES reminders (redeploy with `-AlertEmail you@...`)
+- [ ] (Optional) Download the 9 RBI PDFs (SETUP step 8) so the forms match the official layouts word for word
 - [ ] Decide the final product name whenever you're ready (one-line change in `config/brand.json`)
+- [ ] Record the video (script in `docs/DEMO_SCRIPT.md`) and submit before Sunday's deadline
 
 ---
 
