@@ -136,6 +136,12 @@ def patch_asset(event):
     return 200, svc.update_asset(store, cd, params(event)["assetId"], body_of(event), email)
 
 
+def delete_asset(event):
+    store, _, email, cd = _case(event, "EditCase")
+    svc.delete_asset(store, cd, params(event)["assetId"], email)
+    return 200, {"deleted": True}
+
+
 def search_kit(event):
     _, _, _, cd = _case(event, "ViewCase")
     return 200, svc.search_kit(cd)
@@ -165,9 +171,22 @@ def rules_info(event):
                             for r in book["routes"]]}
 
 
+def guides_info(event):
+    """Public: how to get each document, and the claim playbook summary for every asset type."""
+    from afterloss.rules import load_guides, load_rulebook
+
+    other = load_rulebook()["other"]["routes"]
+    return 200, {
+        "guides": load_guides()["guides"],
+        "playbooks": {k: {f: v.get(f) for f in ("title", "where", "url", "timeline", "sources")}
+                      for k, v in other.items()},
+    }
+
+
 ROUTES = {
     "GET /health": health,
     "GET /rules": rules_info,
+    "GET /guides": guides_info,
     "GET /me/cases": list_cases,
     "POST /cases": create_case,
     "GET /cases/{caseId}": get_case,
@@ -182,6 +201,7 @@ ROUTES = {
     "POST /cases/{caseId}/leads/{leadId}/dismiss": dismiss_lead,
     "POST /cases/{caseId}/assets": add_asset,
     "PATCH /cases/{caseId}/assets/{assetId}": patch_asset,
+    "DELETE /cases/{caseId}/assets/{assetId}": delete_asset,
     "GET /cases/{caseId}/search-kit": search_kit,
     "POST /cases/{caseId}/findings": finding,
     "POST /cases/{caseId}/assets/{assetId}/submit": submit,

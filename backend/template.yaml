@@ -308,6 +308,7 @@ Resources:
       Events:
         Health: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /health, Method: GET, Auth: {Authorizer: NONE}}}
         Rules: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /rules, Method: GET, Auth: {Authorizer: NONE}}}
+        Guides: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /guides, Method: GET, Auth: {Authorizer: NONE}}}
         MyCases: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /me/cases, Method: GET}}
         CreateCase: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /cases, Method: POST}}
         GetCase: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/cases/{caseId}", Method: GET}}
@@ -322,6 +323,7 @@ Resources:
         DismissLead: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/cases/{caseId}/leads/{leadId}/dismiss", Method: POST}}
         AddAsset: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/cases/{caseId}/assets", Method: POST}}
         PatchAsset: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/cases/{caseId}/assets/{assetId}", Method: PATCH}}
+        DeleteAsset: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/cases/{caseId}/assets/{assetId}", Method: DELETE}}
         SearchKit: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/cases/{caseId}/search-kit", Method: GET}}
         Finding: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/cases/{caseId}/findings", Method: POST}}
         Submit: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/cases/{caseId}/assets/{assetId}/submit", Method: POST}}

@@ -1,4 +1,5 @@
 from .detectors import Lead, detect_leads
+from .passbook import parse_passbook_lines, rows_from_words
 from .names import name_variants
 from .searchkit import build_search_kit
 from .statement import Statement, Txn, parse_csv, parse_pdf, parse_statement, parse_text_lines
@@ -23,6 +24,6 @@ def scan_statement(data: bytes, filename: str = "", content_type: str = "", case
 
 
 __all__ = [
-    "Lead", "Statement", "Txn", "build_search_kit", "detect_leads", "name_variants",
+    "Lead", "Statement", "Txn", "build_search_kit", "detect_leads", "name_variants", "parse_passbook_lines", "rows_from_words",
     "parse_csv", "parse_pdf", "parse_statement", "parse_text_lines", "scan_statement",
 ]

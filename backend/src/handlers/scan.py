@@ -5,7 +5,7 @@ from afterloss.app import service as svc
 from afterloss.app.service import ApiError
 from afterloss.aws import files, ocr
 from afterloss.aws.ai import comprehend_pii
-from afterloss.discovery import detect_leads, parse_text_lines, scan_statement
+from afterloss.discovery import detect_leads, parse_passbook_lines, parse_text_lines, rows_from_words, scan_statement
 from afterloss.privacy import mask_image
 
 from .api import deps
@@ -72,6 +72,20 @@ def process(event):
                       f"found {len(saved)} possible asset(s).", email,
                       text_hi=f"{doc.get('filename')} से {st['txnCount']} लेन-देन पढ़े और {len(saved)} संभावित संपत्तियां मिलीं।")
         return 200, {"statement": st, "leads": saved, "unclear": out["unclear"]}
+    if kind == "passbook":  # first page photo → prefill the bank account form; the family confirms
+        data = files.get_bytes(doc["s3Key"])
+        png = ocr.to_png(data, doc.get("contentType", ""))
+        lines, words = ocr.detect_all(png)
+        fields = parse_passbook_lines(rows_from_words(words) or lines)
+        masked, count = mask_image(png, words)
+        key = doc["s3Key"] + ".masked.png"
+        files.put_bytes(key, masked, "image/png")
+        store.update(svc.pk(cd.case_id), doc["SK"], {"status": "processed", "maskedKey": key, "maskedCount": count,
+                                                     "fieldsFound": sorted(fields)})
+        svc.add_event(store, cd.case_id, "passbook", f"Read the passbook photo {doc.get('filename')}: "
+                      f"{fields.get('institution') or 'bank'} details filled in for you to check.", email,
+                      text_hi=f"पासबुक फोटो {doc.get('filename')} पढ़ी गई: जांचने के लिए विवरण भरे गए।")
+        return 200, {"fields": fields, "lineCount": len(lines), "maskedCount": count}
     if kind in {"id_proof", "death_certificate"}:
         res = mask_document(store, cd, doc)
         if res["maskedCount"]:

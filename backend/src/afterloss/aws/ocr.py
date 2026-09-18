@@ -28,3 +28,10 @@ def detect_words(image: bytes) -> list[dict]:
 def detect_lines(image: bytes) -> list[str]:
     r = client("textract").detect_document_text(Document={"Bytes": image})
     return [b["Text"] for b in r.get("Blocks", []) if b.get("BlockType") == "LINE"]
+
+
+def detect_all(image: bytes) -> tuple[list[str], list[dict]]:
+    """One Textract call → (lines, words with geometry), for passbooks that need both parsing and masking."""
+    r = client("textract").detect_document_text(Document={"Bytes": image})
+    blocks = r.get("Blocks", [])
+    return [b["Text"] for b in blocks if b.get("BlockType") == "LINE"], textract_words(blocks)

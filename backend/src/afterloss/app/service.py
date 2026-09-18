@@ -15,20 +15,28 @@ from ..rules.engine import BANK_ASSETS, LOCKER_ASSETS
 
 IST = timezone(timedelta(hours=5, minutes=30))
 ROLES = {"lead", "heir", "helper"}
-DOC_KINDS = {"statement", "death_certificate", "id_proof", "acknowledgement", "pack", "letter", "ombudsman", "other"}
+DOC_KINDS = {"statement", "death_certificate", "id_proof", "acknowledgement", "passbook", "pack", "letter",
+             "ombudsman", "other"}
 ASSET_FIELDS = {
     "assetType", "institution", "branch", "bankType", "nomination", "amount", "will", "dispute", "courtOrder",
     "joint", "legalHeirCertificate", "accountNumbers", "accountType", "nameAsPerBank", "notes",
     "maturityDate", "lockerNo", "receiptNo",
+    # flow v2: where it came from, how it's identified, and whether the family chose to claim it
+    "ifsc", "nomineeName", "source", "identifiers", "include", "category", "customerId",
+    # tracking outside the RBI clock: which documents the family has, and when it was submitted / paid
+    "docsHave", "submittedOn", "receivedOn", "receivedAmount",
 }
 DECEASED_FIELDS = (
     "placeOfDeath", "deathCertNo", "deathCertDate", "deathCertAuthority", "maritalStatus", "deceasedAddress",
-    "religion", "successionLaw",
+    "deceasedCity", "deceasedPin", "deceasedState", "religion", "successionLaw", "will",
 )
 PERSON_FIELDS = {
-    "fullName", "relation", "age", "address", "phone", "email", "idType", "idLast4", "isClaimant", "isNominee",
-    "isNonClaimantHeir", "isDeclarant", "yearsKnown", "sdo",
+    "fullName", "relation", "age", "dob", "address", "phone", "email", "idType", "idLast4", "isClaimant",
+    "isNominee", "isNonClaimantHeir", "isDeclarant", "yearsKnown", "sdo", "guardianName", "guardianRelation",
+    # the claimant's own account, printed in the payment tables of Annex I-A / I-B
+    "bankName", "bankAccountNumber", "bankIfsc", "bankBranch",
 }
+SETUP_STEPS = ("about", "family", "payee", "banks", "investments", "discover", "choose")
 
 
 class ApiError(Exception):
@@ -184,7 +192,15 @@ def update_case(store, cd: CaseData, body: dict) -> dict:
     if "pan" in body:
         pan = (body.get("pan") or "").strip().upper()
         fields["panLast4"] = pan[-4:] if pan else ""
-    return _clean(store.update(pk(cd.case_id), "META", fields))
+    if "setupDone" in body and isinstance(body["setupDone"], list):
+        fields["setupDone"] = [s for s in SETUP_STEPS if s in body["setupDone"]]
+    will_changed = "will" in fields and fields["will"] != cd.meta.get("will")
+    updated = _clean(store.update(pk(cd.case_id), "META", fields))
+    if will_changed:
+        cd.meta.update(fields)
+        for a in cd.assets:  # a will changes bank routes (RBI para 11)
+            reroute(store, cd, a)
+    return updated
 
 
 def case_view(cd: CaseData, email: str) -> dict:
@@ -287,6 +303,8 @@ def upsert_person(store, cd: CaseData, person_id: str, body: dict) -> dict:
     data = {k: body[k] for k in PERSON_FIELDS if k in body}
     if "idLast4" in data:
         data["idLast4"] = str(data["idLast4"] or "")[-4:]
+    if "bankIfsc" in data:
+        data["bankIfsc"] = str(data["bankIfsc"] or "").strip().upper()
     if not (data.get("fullName") or store.get(pk(cd.case_id), f"PERSON#{person_id}")):
         raise ApiError(400, "Enter the person's full name.", "invalid")
     item = store.update(pk(cd.case_id), f"PERSON#{person_id}", {"type": "person", "personId": person_id, **data})
@@ -305,7 +323,7 @@ def facts_for(cd: CaseData, a: dict) -> dict:
         "bank_type": a.get("bankType") or None,
         "nomination": a.get("nomination") or "unknown",
         "amount": a.get("amount") if a.get("amount") not in ("", None) else None,
-        "will": bool(a.get("will")),
+        "will": bool(a.get("will")) or cd.meta.get("will") == "yes",
         "dispute": bool(a.get("dispute")),
         "court_order": bool(a.get("courtOrder")),
         "joint": bool(a.get("joint")),
@@ -328,6 +346,14 @@ def route_status(route: dict, current: str | None) -> str:
 
 def _normalise_asset_fields(body: dict) -> dict:
     data = {k: body[k] for k in ASSET_FIELDS if k in body}
+    if "include" in data:
+        data["include"] = bool(data["include"])
+    if "identifiers" in data and not isinstance(data["identifiers"], dict):
+        data["identifiers"] = {}
+    if "docsHave" in data:
+        data["docsHave"] = {str(k): bool(v) for k, v in (data["docsHave"] or {}).items()} if isinstance(data["docsHave"], dict) else {}
+    if data.get("receivedAmount") not in (None, ""):
+        data["receivedAmount"] = float(data["receivedAmount"])
     if isinstance(data.get("accountNumbers"), str):
         data["accountNumbers"] = [s.strip() for s in data["accountNumbers"].split(",") if s.strip()]
     if data.get("amount") in ("",):
@@ -374,6 +400,19 @@ def update_asset(store, cd: CaseData, asset_id: str, body: dict, actor: str) -> 
     except ValueError as e:
         raise ApiError(400, str(e), "invalid") from e
     return _clean(updated)
+
+
+def delete_asset(store, cd: CaseData, asset_id: str, actor: str) -> None:
+    a = cd.asset(asset_id)
+    if a.get("status") in {"clock_running", "late"}:
+        raise ApiError(409, "This claim's clock is running. Close it before removing the claim.", "running")
+    store.delete(pk(cd.case_id), a["SK"])
+    if a.get("leadId"):  # the lead goes back to 'to review'
+        lead = next((l for l in cd.leads if l["leadId"] == a["leadId"]), None)
+        if lead:
+            store.update(pk(cd.case_id), lead["SK"], {"status": "new", "assetId": ""})
+    add_event(store, cd.case_id, "asset_removed", f"Removed {a.get('institution') or a.get('assetType')} from the list.",
+              actor, asset_id)
 
 
 def confirm_lead(store, cd: CaseData, lead_id: str, body: dict, actor: str) -> dict:
@@ -544,6 +583,7 @@ def pack_context(cd: CaseData, asset: dict) -> dict:
     return {
         "case": {"deceasedName": cd.meta.get("deceasedName"), "dod": cd.meta.get("dod"), "dob": cd.meta.get("dob"),
                  **{k: cd.meta.get(k, "") for k in DECEASED_FIELDS}},
+        "heirs": [p for p in people if not p.get("isDeclarant")],
         "asset": {**_clean(asset), "accountNumbers": asset.get("accountNumbers") or []},
         "route": asset.get("route") or {},
         "claimants": claimants or nominees,
