@@ -140,6 +140,7 @@ stateDiagram-v2
 
 ### 3.5 Assistant with web search
 
+0. **Async job** (added 19 Sep): web-grounded answers can take longer than API Gateway's 30-second cap, so `POST /assistant` saves a pending job (DynamoDB, TTL 1 day), re-invokes the same Lambda asynchronously and returns `202 {jobId}`; the app polls `GET /assistant/{jobId}`. If web search fails, a plain Nova answer is returned with a "no live sources" note; if the model fails, the rule text.
 1. `POST /assistant {caseId, question, mode, lang}` → Cedar check → **PII firewall**:
    - regex for Aadhaar (12 digits, checksum), PAN, phone numbers, emails and long account numbers
    - Comprehend PII detection
@@ -200,7 +201,9 @@ Access patterns: case dashboard = `Query PK=CASE#id` (one call); my cases = `Que
 
 ## 8. Forms engine
 
-- Templates reproduce the **RBI standard formats** (Annex I-A to I-E; I-F and I-H are P1) as reportlab layouts filled from the family profile.
+- **Official pages, not look-alikes.** `forms/official.py` prints the family's details onto the official blank Annex I-A to I-H (SBI's published copy of RBI's standard formats, SHA-256 checked at runtime). `scripts/build_form_layout.py` measured every blank, table cell, tick box and word once, using the glyphs' real baselines (the template's font reports offset glyph boxes). Values are printed in blue ink; tick boxes are ticked; "*Delete whichever is not applicable" options are struck through; amounts are also written in words (lakh / crore); dates are DD-MM-YYYY.
+- The reportlab re-typesetting (`annex.py`) remains as a fallback.
+- **Other assets** (`claim_letter.py`): a plan sheet (steps, documents, where, timeline, sources) and a pre-filled death intimation and claim letter carrying every identifier the institution's own form asks for (folio, BO ID, policy, UAN, PRAN…).
 - **Pack** = cover sheet (checklist, where to submit, originals to carry, "please give dated acknowledgement (para 29)"), forms, attachments (masked, labelled, with "self-attest here"), signature boxes, page numbers and a footer disclaimer.
 - The official PDFs are kept in `sources/` for reference and hashing.
 

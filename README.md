@@ -23,10 +23,14 @@ Most families never hear about any of this.
 
 | Step | What happens | How |
 |---|---|---|
+| **Guided setup** | Seven steps in the order the forms need facts: about them → family and legal heirs → who gets paid → their bank accounts → investments and policies → find unknown assets → choose what to claim. Format checks while typing (PAN, IFSC with lookup, mobile, PIN, demat ID, UAN, PRAN). | React wizard; each fact entered once ([`docs/FLOW.md`](docs/FLOW.md)) |
+| **Passbook photo** | Snap the first page of a passbook or FD receipt: bank, branch, IFSC, account number, customer ID and nomination are filled in for the family to check. | **Amazon Textract** + rows rebuilt from word boxes + deterministic parsing |
 | **Find** | Upload a bank statement. Dividends reveal shares, SIPs reveal mutual funds, premiums reveal insurance, and a ₹436 debit reveals ₹2 lakh of PMJJBY cover. | pdfplumber/CSV parser + explainable detectors + fuzzy dictionaries; Textract for scans |
 | **Search** | Prefilled kits for the official portals (unified portal, RBI UDGAM, SEBI MITRA, IEPF, insurers, EPFO) with name variants. They mostly find money dormant 7–10+ years, so we're honest about that. | Search-kit generator |
 | **Route** | Each asset gets its route (nominee / simplified / above threshold / will / dispute / locker) with the **exact RBI paragraph quoted**. | Rules stored as data, each quote checked against the hashed RBI text |
-| **Fill** | One tap produces a claim pack: RBI Annex forms pre-filled from the family profile, Aadhaar masked on ID copies, signature boxes, and a checklist. | reportlab + pypdf; Textract + Comprehend for masking |
+| **Fill** | One tap produces a claim pack. For banks, RBI's Annex forms are printed **on the official form pages themselves** (tick boxes ticked, non-applicable options struck, amount in words). For MF, shares, insurance, PF, NPS and small savings: a plan sheet and a pre-filled claim letter. | pypdf overlay on the official template (hash-checked) + reportlab; Textract + Comprehend for masking |
+| **Plan** | Every asset gets a numbered plan: what applies (with the rule and source), documents (tick what you have, "how to get it" for the rest), forms, who signs and what needs stamp paper, where to submit, and a tracker. | Playbooks as data from SEBI, AMFI, IRDAI, EPFO and India Post sources |
+| **Guides** | Missing a document? Death certificate (incl. late registration), legal heir and succession certificates, probate, stamp paper, notary, affidavits: who issues it, steps, time, cost. | `guides.json` + web-grounded "ask for my state" |
 | **Follow up** | Upload the bank's acknowledgement and a 15-day clock starts. Reminders on day 10 and 14. If late, compensation is calculated and the letter to the bank drafted. After 30 more days, an RBI Ombudsman draft. | Step Functions with callback tokens |
 | **Ask** | "Explain in simple words" (English/Hindi), or search the web with citations. Personal data is stripped first. | Bedrock **Amazon Nova 2 Lite** + **Nova Web Grounding** |
 | **Family** | Lead, heirs and helpers. Helpers see masked previews only and can never download originals. | **Amazon Verified Permissions (Cedar)** `forbid` policy |
@@ -51,11 +55,11 @@ Full details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): the data mod
 
 ## Proof it works
 
-- `backend/tests`: **86 unit tests**. They cover:
+- `backend/tests`: **108 unit tests**. They cover:
   - every RBI route, including both threshold boundaries
   - compensation maths: ₹3.2 lakh, 10 days late at 9.5% = ₹832.88
   - discovery: all 16 planted assets found, no false positives
-  - forms, masking, the PII firewall
+  - forms on the official pages, claim letters, passbook parsing, playbook slabs (MF ₹5/10 lakh, demat ₹15 lakh, Form-11 ₹5 lakh), masking, the PII firewall, assistant jobs
   - Cedar policies validated with `cedarpy`, with a 28-case decision matrix
 - `python -m afterloss.rules.verify` re-hashes the RBI source and confirms **27/27 quotes appear word for word**.
 - `scripts/e2e.py`: **18/18 live checks** on AWS (scan, route, pack, masking, Cedar denials, full clock → letter → Ombudsman draft, grounded answer with citations).
