@@ -1,0 +1,109 @@
+{
+  "note": "Checklist routes for assets outside RBI's 2025 bank Directions. These are guidance only (verified: false) until each source text is stored and hashed like the RBI rules.",
+  "routes": {
+    "epf": {
+      "route": "EPF_DEATH_CLAIM",
+      "title": {"en": "PF, pension and EDLI insurance: EPFO death claim", "hi": "पीएफ, पेंशन और ईडीएलआई बीमा: ईपीएफओ मृत्यु दावा"},
+      "checklist": [
+        {"en": "Get the UAN from payslips, Form 16 or HR", "hi": "वेतन पर्ची, फ़ॉर्म 16 या एचआर से यूएएन लें"},
+        {"en": "Form 20: PF balance, claimed by the nominee or legal heir", "hi": "फ़ॉर्म 20: पीएफ राशि"},
+        {"en": "Form 10D: monthly family pension (EPS) for the spouse and children", "hi": "फ़ॉर्म 10D: मासिक पारिवारिक पेंशन"},
+        {"en": "Form 5IF: EDLI insurance, ₹2.5–7 lakh if the member died while in service", "hi": "फ़ॉर्म 5IF: ईडीएलआई बीमा ₹2.5–7 लाख"},
+        {"en": "EPFO's composite death-claim form combines Forms 20, 10D and 5IF; submit online if Aadhaar is linked, otherwise with employer attestation", "hi": "संयुक्त मृत्यु दावा फ़ॉर्म में 20, 10D, 5IF शामिल हैं"},
+        {"en": "Also ask the employer about gratuity and any group insurance", "hi": "नियोक्ता से ग्रेच्युटी और समूह बीमा के बारे में भी पूछें"}
+      ],
+      "where": "EPFO member portal / regional office / employer HR",
+      "url": "https://www.epfindia.gov.in",
+      "verified": false
+    },
+    "life_insurance": {
+      "route": "INSURANCE_DEATH_CLAIM",
+      "title": {"en": "Life insurance death claim", "hi": "जीवन बीमा मृत्यु दावा"},
+      "checklist": [
+        {"en": "Tell the insurer about the death (branch, website or app) and get a claim reference", "hi": "बीमा कंपनी को सूचना दें और दावा संदर्भ लें"},
+        {"en": "Claim form, death certificate, policy document (or indemnity if lost), nominee ID and bank details", "hi": "दावा फ़ॉर्म, मृत्यु प्रमाण पत्र, पॉलिसी दस्तावेज़, नामिती का पहचान पत्र और बैंक विवरण"},
+        {"en": "Insurers must settle within 15 days, or 45 days if they investigate; late payment carries interest (IRDAI Master Circular 2024)", "hi": "बीमा कंपनी 15 दिन (जांच हो तो 45 दिन) में निपटाए"}
+      ],
+      "where": "Insurer branch / website",
+      "url": "https://irdai.gov.in/document-detail?documentId=5625747",
+      "verified": false
+    },
+    "pmjjby": {
+      "route": "PMJJBY_CLAIM",
+      "title": {"en": "PMJJBY: ₹2 lakh life cover through the bank", "hi": "पीएमजेजेबीवाई: बैंक के ज़रिए ₹2 लाख जीवन बीमा"},
+      "checklist": [
+        {"en": "A yearly ₹436 auto-debit labelled PMJJBY means the person had ₹2 lakh of life cover", "hi": "₹436 की वार्षिक कटौती (PMJJBY) का मतलब ₹2 लाख का जीवन बीमा"},
+        {"en": "The nominee submits the claim form and death certificate at the bank branch that debited the premium", "hi": "नामिती उसी बैंक शाखा में दावा फ़ॉर्म और मृत्यु प्रमाण पत्र जमा करे"}
+      ],
+      "where": "The bank branch holding the account",
+      "url": "https://jansuraksha.gov.in",
+      "verified": false
+    },
+    "pmsby": {
+      "route": "PMSBY_CLAIM",
+      "title": {"en": "PMSBY: ₹2 lakh accident cover through the bank", "hi": "पीएमएसबीवाई: ₹2 लाख दुर्घटना बीमा"},
+      "checklist": [
+        {"en": "A yearly ₹20 auto-debit labelled PMSBY means accident cover; it pays only for accidental death", "hi": "₹20 की वार्षिक कटौती (PMSBY) का मतलब दुर्घटना बीमा"},
+        {"en": "Needs the claim form, death certificate, and FIR / post-mortem report for the accident", "hi": "दावा फ़ॉर्म, मृत्यु प्रमाण पत्र, एफआईआर/पोस्टमार्टम रिपोर्ट"}
+      ],
+      "where": "The bank branch holding the account",
+      "url": "https://jansuraksha.gov.in",
+      "verified": false
+    },
+    "mutual_fund": {
+      "route": "MF_TRANSMISSION",
+      "title": {"en": "Mutual funds: transmission to the nominee / legal heirs", "hi": "म्यूचुअल फंड: नामिती/वारिसों को हस्तांतरण"},
+      "checklist": [
+        {"en": "List all folios: CAS statement (CAMS/KFintech), SEBI MITRA, or DigiLocker if you are a data-access nominee", "hi": "सभी फोलियो की सूची बनाएं: सीएएस, मित्रा या डिजीलॉकर"},
+        {"en": "Submit a transmission request with the death certificate, your KYC and bank proof to the AMC/RTA (or online via MF Central)", "hi": "एएमसी/आरटीए को हस्तांतरण अनुरोध जमा करें"}
+      ],
+      "where": "AMC / CAMS / KFintech / MF Central",
+      "url": "https://www.sebi.gov.in/legal/circulars/feb-2025/service-platform-for-investors-to-trace-inactive-and-unclaimed-mutual-fund-folios-mitra-mutual-fund-investment-tracing-and-retrieval-assistant-_91847.html",
+      "verified": false
+    },
+    "shares": {
+      "route": "SHARES_TRANSMISSION",
+      "title": {"en": "Shares: transmission from the demat account, or IEPF if unclaimed for years", "hi": "शेयर: डीमैट से हस्तांतरण, या वर्षों से अनक्लेम्ड हों तो आईईपीएफ"},
+      "checklist": [
+        {"en": "Find the demat account: CAS from NSDL/CDSL in email, DigiLocker, or the broker named in the statement", "hi": "डीमैट खाता खोजें: ईमेल में सीएएस, डिजीलॉकर या ब्रोकर"},
+        {"en": "Give the depository participant (DP) a transmission request with the death certificate and your demat details", "hi": "डिपॉजिटरी प्रतिभागी को हस्तांतरण अनुरोध दें"},
+        {"en": "Dividends unpaid for 7 years (and the shares) move to IEPF: search iepf.gov.in and claim with Form IEPF-5", "hi": "7 वर्ष से अनपेड लाभांश आईईपीएफ में जाते हैं: फ़ॉर्म IEPF-5"}
+      ],
+      "where": "Broker / DP; company RTA; IEPF",
+      "url": "https://www.iepf.gov.in",
+      "verified": false
+    },
+    "govt_scheme": {
+      "route": "GOVT_SCHEME_CLAIM",
+      "title": {"en": "PPF / NSC / SCSS / NPS / APY: claim under the scheme's own rules", "hi": "पीपीएफ / एनएससी / एससीएसएस / एनपीएस / एपीवाई: योजना के अपने नियम"},
+      "checklist": [
+        {"en": "These are outside RBI's 2025 Directions (para 6(b)); claim at the post office or bank that holds the account", "hi": "ये आरबीआई 2025 निर्देशों से बाहर हैं (पैरा 6(b))"},
+        {"en": "NPS/APY: the nominee claims through the bank or point of presence; the spouse may get the pension under APY", "hi": "एनपीएस/एपीवाई: नामिती बैंक/पीओपी के ज़रिए दावा करे"}
+      ],
+      "where": "Post office / bank / NPS point of presence",
+      "url": "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12901&Mode=0",
+      "verified": false
+    },
+    "loan": {
+      "route": "LIABILITY_CHECK",
+      "title": {"en": "Loan found: check if it was insured before paying", "hi": "ऋण मिला: भुगतान से पहले बीमा की जांच करें"},
+      "checklist": [
+        {"en": "Ask the lender for the loan statement and whether a credit-life or loan protection policy was bundled; if so, the insurer may clear the loan", "hi": "ऋणदाता से पूछें कि क्या ऋण बीमा जुड़ा था"},
+        {"en": "Heirs are not personally liable beyond what they inherit; talk to the lender before paying from your own money", "hi": "वारिस विरासत से अधिक के लिए व्यक्तिगत रूप से ज़िम्मेदार नहीं हैं"}
+      ],
+      "where": "Lender",
+      "url": "",
+      "verified": false
+    },
+    "other": {
+      "route": "GENERIC",
+      "title": {"en": "Other asset: ask the institution for its death-claim checklist", "hi": "अन्य संपत्ति: संस्था से मृत्यु-दावा सूची मांगें"},
+      "checklist": [
+        {"en": "Death certificate, your ID and address proof, and proof of relationship or nomination", "hi": "मृत्यु प्रमाण पत्र, पहचान/पता प्रमाण, संबंध या नामांकन प्रमाण"}
+      ],
+      "where": "Institution",
+      "url": "",
+      "verified": false
+    }
+  }
+}

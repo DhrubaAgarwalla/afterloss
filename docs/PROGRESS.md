@@ -8,9 +8,9 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 |---|---|
 | Research and idea | ✅ Done |
 | Docs (hackathon, PRD, architecture, setup) | ✅ Done |
-| Repo and GitHub | 🔄 In progress |
-| Rules engine (RBI Directions 2025) + tests | ⏳ Next |
-| Discovery (statement → leads) + tests | ⏳ |
+| Repo and GitHub | ✅ https://github.com/DhrubaAgarwalla/afterloss |
+| Rules engine (RBI Directions 2025) + tests | ✅ 36 tests pass; 27 citations verified against the hashed RBI text |
+| Discovery (statement → leads) + tests | 🔄 Next |
 | Forms and packs (RBI Annex I-A to I-E) + tests | ⏳ |
 | Infrastructure (SAM template) | ⏳ |
 | Lambda handlers | ⏳ |
@@ -29,6 +29,25 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 ---
 
 ## Log
+
+### 2026-09-18 18:40 IST: Rules engine, with every citation proven
+**What**
+- Saved RBI's official notification (RBI/2025-26/82) in `sources/rbi-2025-deceased-claims/` as HTML plus a clean text copy, and recorded its SHA-256 in `backend/src/afterloss/rules/data/sources.json`.
+- Encoded the rules as data (`rules/data/rbi_deceased_2025.json`):
+  - routes: nominee (paras 8–9), simplified (10(a)), above threshold (10(b)), will (11(a)), dispute (11(b)), court order, lockers and safe custody (16–26)
+  - thresholds (7(h)) and document lists that map to the Annex I-A to I-H forms
+  - notes: trustee (8(iii)), joint accounts, fixed deposits can close early without penalty (13), submit at any branch (29)
+- Clocks and compensation (`clocks.json`, `compensation.py`): 15 days (paras 31/32), Bank Rate + 4% using the rate on the documents-complete date (para 33), ₹5,000/day for lockers (para 34), RBI Ombudsman escalation. Bank Rate history is in `bank_rate.json`.
+- Non-bank assets as checklists (`other_assets.json`): EPF (Forms 20/10D/5IF), life insurance, **PMJJBY/PMSBY** (a ₹436 or ₹20 yearly debit reveals ₹2 lakh of cover), mutual funds, shares/IEPF, PPF/NPS/APY, loans.
+- `engine.py` evaluates rules in order with three values (true / false / unknown). When a fact is unknown it **asks a question instead of guessing**.
+- `verify.py` (`python -m afterloss.rules.verify`) re-hashes the source and checks that every quote appears word for word: 27/27 pass.
+- Tests (36): every route, both threshold boundaries (₹5 lakh inclusive / ₹5,00,001), all combinations of facts, and the compensation maths (₹3.2 lakh, 10 days late → ₹832.88 at 9.5%).
+
+**Why**
+- Judges and families both need to trust the output. Rules as data plus exact quotes plus a hash is the pattern the organisers recommend. The model never decides.
+
+**Left**
+- Discovery engine, forms and packs, infrastructure, handlers, frontend, deploy.
 
 ### 2026-09-18 18:05 IST: Project docs and plan
 **What**
