@@ -59,7 +59,7 @@ export default function AskPage() {
       <div>
         <h1 className="text-2xl font-semibold">{t("ask.title", "Ask")}</h1>
         <p className="text-sm text-muted">
-          {t("ask.sub", "Amazon Nova 2 Lite on AWS. It explains and searches; it never changes your routes, dates or amounts.")}
+          {t("ask.sub", "Explanations: OpenAI gpt-oss-120b in AWS Mumbai. Web search: Amazon Nova 2 Lite with sources. It never changes your routes, dates or amounts.")}
         </p>
       </div>
       <div className="flex gap-2 rounded-xl bg-stone-100 p-1 text-sm">

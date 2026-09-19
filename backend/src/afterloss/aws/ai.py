@@ -1,4 +1,5 @@
-"""Amazon Bedrock (Nova 2 Lite) calls: grounded web answers and plain explanations.
+"""Amazon Bedrock calls: grounded web answers (Amazon Nova 2 Lite + Web Grounding, us-east-1) and plain
+explanations (OpenAI gpt-oss-120b in ap-south-1, so explanation requests stay in India).
 
 Rules for the model (the organisers' pattern: the model never decides):
   * it only explains or searches; routes, dates and money come from the rules engine
@@ -15,8 +16,8 @@ from .clients import client
 
 WEB_MODEL = os.environ.get("MODEL_ID_WEB", "us.amazon.nova-2-lite-v1:0")
 WEB_REGION = os.environ.get("MODEL_REGION_WEB", "us-east-1")
-EXPLAIN_MODEL = os.environ.get("MODEL_ID_EXPLAIN", "us.amazon.nova-2-lite-v1:0")
-EXPLAIN_REGION = os.environ.get("MODEL_REGION_EXPLAIN", "us-east-1")
+EXPLAIN_MODEL = os.environ.get("MODEL_ID_EXPLAIN", "openai.gpt-oss-120b-1:0")
+EXPLAIN_REGION = os.environ.get("MODEL_REGION_EXPLAIN", "ap-south-1")
 
 OFFICIAL_DOMAINS = (
     "rbi.org.in", "sebi.gov.in", "iepf.gov.in", "epfindia.gov.in", "irdai.gov.in", "incometax.gov.in",
@@ -34,13 +35,19 @@ SYSTEM_WEB = (
 
 SYSTEM_EXPLAIN = (
     "You explain one step of a bank claim to a grieving Indian family in very simple, kind words. Use only the "
-    "facts given in the context; do not add rules, amounts or deadlines that are not in the context. Keep it under "
-    "90 words. End with one line telling them what to do next."
+    "facts given in the context; do not add rules, amounts or deadlines that are not in the context. Never say "
+    "something is or isn't required unless the context says so. If the context doesn't answer the question, say "
+    "that plainly and suggest asking the bank branch or using 'Search the web'. Keep it under 90 words. End with "
+    "one line telling them what to do next."
 )
 
 
 def _lang_line(lang: str) -> str:
-    return "Answer in simple Hindi (Devanagari script)." if lang == "hi" else "Answer in simple English."
+    if lang == "hi":  # a small glossary keeps official terms right (a model once wrote RBI as 'रबी', the crop season)
+        return ("Answer in simple Hindi (Devanagari script). Write RBI as 'आरबीआई', succession certificate as "
+                "'उत्तराधिकार प्रमाण पत्र', legal heir as 'कानूनी वारिस', stamp paper as 'स्टांप पेपर'; keep form "
+                "names like 'Annex I-E' in English.")
+    return "Answer in simple English."
 
 
 def _is_official(domain: str) -> bool:
@@ -73,16 +80,22 @@ def grounded_answer(question: str, lang: str = "en") -> dict:
             "usage": resp.get("usage", {})}
 
 
-def explain(context: str, question: str, lang: str = "en") -> dict:
-    br = client("bedrock-runtime", EXPLAIN_REGION, read_timeout=60)
+def explain(context: str, question: str, lang: str = "en", model: str | None = None, region: str | None = None) -> dict:
+    model, region = model or EXPLAIN_MODEL, region or EXPLAIN_REGION
+    br = client("bedrock-runtime", region, read_timeout=60)
+    kw: dict = {}
+    if "gpt-oss" in model:
+        # a reasoning model: its thinking counts toward maxTokens, so allow room and keep reasoning light
+        kw["additionalModelRequestFields"] = {"reasoning_effort": "low"}
     resp = br.converse(
-        modelId=EXPLAIN_MODEL,
+        modelId=model,
         system=[{"text": SYSTEM_EXPLAIN + " " + _lang_line(lang)}],
         messages=[{"role": "user", "content": [{"text": f"Context:\n{context}\n\nQuestion: {question}"}]}],
-        inferenceConfig={"maxTokens": 400, "temperature": 0.2},
+        inferenceConfig={"maxTokens": 1200 if "gpt-oss" in model else 400, "temperature": 0.2},
+        **kw,
     )
-    text = "".join(p.get("text", "") for p in resp["output"]["message"]["content"])
-    return {"answer": text.strip(), "citations": [], "model": EXPLAIN_MODEL, "grounded": False,
+    text = "".join(p.get("text", "") for p in resp["output"]["message"]["content"])  # reasoning blocks are skipped
+    return {"answer": text.strip(), "citations": [], "model": model, "grounded": False,
             "usage": resp.get("usage", {})}
 
 

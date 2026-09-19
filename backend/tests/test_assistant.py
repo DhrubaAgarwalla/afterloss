@@ -80,3 +80,34 @@ def test_stranger_cannot_ask_about_a_case(world):
     _, case_id = world
     status, res = ask(STRANGER, {"caseId": case_id, "question": "Tell me about this case"})
     assert status == 403
+
+
+def test_explain_settings_per_model(monkeypatch):
+    """gpt-oss is a reasoning model: room for its thinking and light reasoning; Nova keeps the short cap."""
+    calls = []
+
+    class FakeBedrock:
+        def converse(self, **kw):
+            calls.append(kw)
+            return {"output": {"message": {"content": [{"reasoningContent": {"reasoningText": {"text": "…"}}},
+                                                       {"text": "Answer."}]}}, "usage": {}}
+
+    monkeypatch.setattr(assistant.ai, "client", lambda *a, **k: FakeBedrock())
+    r = assistant.ai.explain("ctx", "q", "hi", model="openai.gpt-oss-120b-1:0", region="ap-south-1")
+    assert r["answer"] == "Answer."  # reasoning blocks are not shown to the family
+    assert calls[0]["additionalModelRequestFields"] == {"reasoning_effort": "low"}
+    assert calls[0]["inferenceConfig"]["maxTokens"] == 1200
+    assert "आरबीआई" in calls[0]["system"][0]["text"]  # Hindi glossary keeps official terms right
+    assistant.ai.explain("ctx", "q", "en", model="us.amazon.nova-2-lite-v1:0", region="us-east-1")
+    assert "additionalModelRequestFields" not in calls[1] and calls[1]["inferenceConfig"]["maxTokens"] == 400
+
+
+def test_explain_context_carries_the_official_form_facts():
+    from afterloss.rules import evaluate_asset
+
+    route = evaluate_asset({"asset_type": "term_deposit", "nomination": "none", "bank_type": "cooperative",
+                            "amount": 320000, "non_claimant_heirs": 1}).to_dict()
+    ctx = assistant._route_context({"assetType": "term_deposit", "institution": "Nandini Sahakari Bank", "route": route})
+    assert "Annex I-D (letter of disclaimer / no objection)" in ctx and "must be stamped" in ctx
+    assert "not related to the deceased or the heirs" in ctx
+    assert "Limit for this route at this bank: Rs 500,000; this claim: Rs 320,000" in ctx

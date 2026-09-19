@@ -29,10 +29,10 @@ Parameters:
     Default: us-east-1
   ModelIdExplain:
     Type: String
-    Default: us.amazon.nova-2-lite-v1:0
+    Default: openai.gpt-oss-120b-1:0      # explanations run in Mumbai (data stays in India); chosen 19 Sep after a head-to-head
   ModelRegionExplain:
     Type: String
-    Default: us-east-1
+    Default: ap-south-1
 
 Conditions:
   HasAlertEmail: !Not [!Equals [!Ref AlertEmail, ""]]

@@ -32,7 +32,7 @@ Most families never hear about any of this.
 | **Plan** | Every asset gets a numbered plan: what applies (with the rule and source), documents (tick what you have, "how to get it" for the rest), forms, who signs and what needs stamp paper, where to submit, and a tracker. | Playbooks as data from SEBI, AMFI, IRDAI, EPFO and India Post sources |
 | **Guides** | Missing a document? Death certificate (incl. late registration), legal heir and succession certificates, probate, stamp paper, notary, affidavits: who issues it, steps, time, cost. | `guides.json` + web-grounded "ask for my state" |
 | **Follow up** | Upload the bank's acknowledgement and a 15-day clock starts. Reminders on day 10 and 14. If late, compensation is calculated and the letter to the bank drafted. After 30 more days, an RBI Ombudsman draft. | Step Functions with callback tokens |
-| **Ask** | "Explain in simple words" (English/Hindi), or search the web with citations. Personal data is stripped first. | Bedrock **Amazon Nova 2 Lite** + **Nova Web Grounding** |
+| **Ask** | "Explain in simple words" (English/Hindi), or search the web with citations. Personal data is stripped first. | Bedrock: explanations with **OpenAI gpt-oss-120b in Mumbai** (stays in India); web search with **Amazon Nova 2 Lite + Nova Web Grounding** |
 | **Family** | Lead, heirs and helpers. Helpers see masked previews only and can never download originals. | **Amazon Verified Permissions (Cedar)** `forbid` policy |
 
 ## Architecture
@@ -48,7 +48,7 @@ flowchart LR
   UI -- presigned --> S3[(S3 docs)]
   L2 --> TX[Textract] & CMP[Comprehend]
   L1 --> SFN[Step Functions claim clock] --> L5[Lambda clock] --> SES[SES]
-  L4 --> BR[Bedrock Nova 2 Lite + Web Grounding]
+  L4 --> BR[Bedrock: gpt-oss-120b in Mumbai + Nova 2 Lite Web Grounding]
 ```
 
 Full details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): the data model, API, security, cost, and the choices we made (e.g. no OpenSearch Serverless, no SMS until DLT registration).

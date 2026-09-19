@@ -37,6 +37,18 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 
 ## Log
 
+### 2026-09-19 08:30 IST: Explanations move to gpt-oss-120b in Mumbai; AI prompt fixes
+**What**
+- Compared models on our real prompts with AWS's own prices (Price List API). Web search stays on **Nova 2 Lite + Web Grounding** (the only Bedrock option with built-in web search; it answered the EPF question correctly with sources). **Explain** moves to **OpenAI gpt-oss-120b in ap-south-1**: accurate on our rule text, about 1-2 s, cheapest (~$0.18 / $0.71 per 1M tokens), and explanation requests stay in India.
+- Fixed two issues the test exposed (they affect every model): the explain context now carries the official form facts (which annexes need stamp paper, who may sign Annex I-E, the threshold) and the prompt forbids unsupported claims; Hindi answers get a glossary (a model wrote RBI as "रबी").
+- 110 tests pass.
+
+**Why**
+- You asked how good our AI is and for better options with pricing, and chose gpt-oss-120b in Mumbai.
+
+**Left**
+- Needs a fresh `aws login` to deploy and to run the live re-check.
+
 ### 2026-09-19 06:30 IST: Connect Gmail, with more than one account
 **What**
 - Step 5 ("Investments & policies") can connect **any number of Gmail accounts** (the deceased's, or a family member's who got their mail). For each account the browser runs ~27 read-only searches (CAMS/KFintech/MF Central, NSDL/CDSL and brokers, LIC and private insurers, EPFO, NPS, India Post, dividends, FDs, cards, loans), reads only From / Subject / Date, and merges the results across accounts ("LIC · about 12 emails · latest … · a@gmail.com, b@gmail.com") with an **Add** button.

@@ -25,6 +25,14 @@ Things we didn't know on Thursday, written down as we hit them.
 1. **New Chrome returns a Promise from `scrollIntoView()`.** `useEffect(() => ref.current?.scrollIntoView())` returned it, React treated it as the cleanup function, and the whole app unmounted ("l is not a function"). Effects need braces; an error boundary now contains any screen crash.
 2. **PDF glyph boxes lie.** The official form's font reports glyph boxes about 4pt below where it draws, so text placed from pdfplumber's top/bottom landed on the rules. Reading the baseline from each glyph's text matrix put every value exactly on its line.
 
+## Models (head-to-head on our own prompts, 19 Sep)
+
+1. **Without web search, every model we tried invented EPF form numbers.** Nova 2 Lite said "Form 10 and 11, EDLI max ₹3 lakh"; Claude Haiku 4.5 and gpt-oss-120b said Forms 19/31 (both got ₹7 lakh right). With Nova Web Grounding, Nova 2 Lite answered correctly (Forms 20, 10-D, 5(IF), ₹7 lakh) with sources. That is why the model only explains our rule text or searches with citations, and never decides.
+2. **Gaps in the context get filled with guesses.** Asked whether the no-objection letter needs stamp paper, a model said "no" because our context didn't mention stamping (the official Annex I-D says it must be stamped). We now pass the official form facts as context and tell the model to say "I don't know" instead of guessing.
+3. **Hindi needs a glossary.** One model wrote RBI as "रबी" (the crop season). A one-line glossary (आरबीआई, उत्तराधिकार प्रमाण पत्र, कानूनी वारिस) fixes it.
+4. **Web grounding is the real cost.** $0.03 per grounded request against about $0.0003 of tokens per answer: 97% of our AI bill. Model choice for explanations barely moves the total.
+5. **Pricing is in the AWS Price List API.** `aws pricing get-products --service-code AmazonBedrock` (Amazon and open models) and `AmazonBedrockFoundationModels` (Anthropic) give exact per-token prices; Claude is 10% cheaper on `global.` profiles than on regional ones.
+
 ## Domain
 
 1. **RBI's 2025 deceased-claims Directions** turned a messy process into rules: standard forms (Annex I-A to I-H), a simplified route up to ₹15 lakh (₹5 lakh for co-op banks), settlement in 15 days (para 31), and interest at Bank Rate + 4% for delays (para 33). The Bank Rate is taken as on the date all documents were received.

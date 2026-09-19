@@ -43,6 +43,18 @@ GENERAL_CONTEXT = (
     "(para 33).")
 
 
+# What the official RBI annexes themselves say, so answers about signing and stamping come from the form text
+FORM_FACTS = {
+    "I-C": "Annex I-C (bond of indemnity) is signed by the claimants and must be stamped as per the Stamp Act of the "
+           "State; the stamp paper value depends on the state (ask the branch).",
+    "I-D": "Annex I-D (letter of disclaimer / no objection) is one letter signed by every legal heir who is not "
+           "claiming, and must be stamped as per the Stamp Act of the State.",
+    "I-E": "Annex I-E (declaration) is signed by an independent person who knows the family well, is not related to "
+           "the deceased or the heirs and is not a claimant; it must be stamped as per the Stamp Act of the State.",
+    "I-H": "Annex I-H (indemnity for locker / safe custody contents) must be stamped as per the Stamp Act of the State.",
+}
+
+
 def _route_context(asset: dict) -> str:
     r = asset.get("route") or {}
     lines = [f"Asset: {asset.get('assetType')} at {asset.get('institution') or 'a bank'}",
@@ -50,6 +62,16 @@ def _route_context(asset: dict) -> str:
     cit = r.get("citation") or {}
     if cit:
         lines.append(f"Rule: RBI Directions 2025 para {cit.get('para')}: \"{cit.get('quote')}\"")
+    thr = r.get("threshold") or {}
+    if thr.get("limit_inr"):
+        lines.append(f"Limit for this route at this bank: Rs {thr['limit_inr']:,.0f}; this claim: Rs {float(thr.get('amount_inr') or 0):,.0f} (para 7(h)).")
+    for f in r.get("forms") or []:
+        if f in FORM_FACTS:
+            lines.append(f"Form fact: {FORM_FACTS[f]}")
+    if r.get("where"):
+        lines.append(f"Where: {r['where']}")
+    if (r.get("timeline") or {}).get("en"):
+        lines.append(f"Timeline: {r['timeline']['en']}")
     for d in r.get("documents") or []:
         lines.append(f"Document needed: {d.get('en')}")
     for n in r.get("notes") or []:
