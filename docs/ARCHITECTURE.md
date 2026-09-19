@@ -126,15 +126,17 @@ stateDiagram-v2
   Settled --> ComputeFinal: paid late? compute interest owed
   ComputeFinal --> [*]
   Late --> Compensation: Bank Rate(ack date)+4% (para 33)
-  Compensation --> BankLetter: letter asking payment or reasons
-  BankLetter --> WaitReply: +30 days
-  WaitReply --> AskResolved: callback token
+  Compensation --> BankLetter: letter drafted (not sent)
+  BankLetter --> AskComplaintSent: callback token, no timeout
+  AskComplaintSent --> WaitReply: family confirms the date it was sent
+  WaitReply --> AskResolved: sent date + 30 days
   AskResolved --> [*]: resolved
-  AskResolved --> Ombudsman: not resolved → draft CMS complaint
+  AskResolved --> Ombudsman: not resolved → draft CMS complaint (status "Ombudsman draft ready")
   Ombudsman --> [*]
 ```
 
 - **Callback tokens** (`.waitForTaskToken`): the task stores its token in DynamoDB. When the family answers in the app, the API calls `SendTaskSuccess`.
+- **Real-world events, not assumptions:** the 30-day complaint period starts from the date the family says they **sent** the letter (a drafted letter starts nothing), and "paid" records the date the money actually arrived, so an answer given late doesn't make an on-time payment look late.
 - **Demo mode:** each case has `secondsPerDay` (86,400 normally, e.g. 4 in demo). The clock Lambda turns "day N" into real timestamps for the `Wait` states' `TimestampPath`, so 15 days can pass in 1 minute on camera.
 - Compensation uses the **Bank Rate on the documents-complete date**, as para 33 says. Rates live in `bank_rate.json` with effective dates and sources.
 

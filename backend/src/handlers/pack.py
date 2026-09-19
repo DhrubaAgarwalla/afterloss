@@ -14,24 +14,30 @@ from .api import deps
 from .http import api, email_of, params
 
 LABELS = {"death_certificate": "Death certificate (copy)", "id_proof": "ID proof (Aadhaar masked)"}
+MAX_ATTACHMENT_PAGES = 25
 
 
-def _image_for(doc: dict) -> bytes | None:
-    key = doc.get("maskedKey")
-    if key:
-        return files.get_bytes(key)
+def _images_for(doc: dict) -> tuple[list[bytes], int]:
+    """Return rendered pages plus the source page count, so omissions are never silent."""
+    masked_keys = doc.get("maskedKeys") or ([doc["maskedKey"]] if doc.get("maskedKey") else [])
+    if masked_keys:
+        return [files.get_bytes(key) for key in masked_keys], int(doc.get("maskedPagesTotal") or len(masked_keys))
     if doc.get("kind") == "id_proof":
-        return None  # never attach an unmasked ID; the family can run masking first
+        return [], 0  # never attach an unmasked ID; the family can run masking first
     data = files.get_bytes(doc["s3Key"])
     if data[:5] == b"%PDF-":
         import pypdfium2 as pdfium
 
-        buf = io.BytesIO()
-        pdfium.PdfDocument(data)[0].render(scale=2).to_pil().convert("RGB").save(buf, format="PNG")
-        return buf.getvalue()
+        pdf = pdfium.PdfDocument(data)
+        images = []
+        for page_no in range(min(len(pdf), MAX_ATTACHMENT_PAGES)):
+            buf = io.BytesIO()
+            pdf[page_no].render(scale=2).to_pil().convert("RGB").save(buf, format="PNG")
+            images.append(buf.getvalue())
+        return images, len(pdf)
     if (doc.get("contentType") or "").startswith("image/"):
-        return data
-    return None
+        return [data], 1
+    return [], 0
 
 
 def build(event):
@@ -44,18 +50,24 @@ def build(event):
     bank = asset.get("assetType") in BANK_ASSETS | LOCKER_ASSETS
     if route.get("route") == "NEEDS_INFO":
         raise ApiError(400, "Answer the open questions for this claim first.", "not_ready")
-    if not any(p.get("isClaimant") or p.get("isNominee") for p in cd.people):
-        raise ApiError(400, "Add at least one claimant or nominee under Family first.", "no_people")
+    ctx = svc.pack_context(cd, asset)
+    if not ctx["claimants"]:
+        raise ApiError(400, "Choose at least one person for this claim first.", "no_people")
+    if "I-E" in (route.get("forms") or []) and not ctx["declarant"]:
+        raise ApiError(400, "Choose the independent declarant for this claim first.", "no_declarant")
     attachments = []
     skipped = []
     for d in cd.docs:
         if d.get("kind") in LABELS and d.get("assetId") in ("", asset["assetId"]):
-            img = _image_for(d)
-            if img:
-                attachments.append({"label": f"{LABELS[d['kind']]}: {d.get('filename')}", "image": img})
+            images, total_pages = _images_for(d)
+            if images:
+                for page_no, image in enumerate(images, 1):
+                    page = f" (page {page_no} of {total_pages})" if total_pages > 1 else ""
+                    attachments.append({"label": f"{LABELS[d['kind']]}: {d.get('filename')}{page}", "image": image})
+                if total_pages > len(images):
+                    skipped.append(f"{d.get('filename')} (only first {len(images)} of {total_pages} pages included)")
             else:
                 skipped.append(d.get("filename"))
-    ctx = svc.pack_context(cd, asset)
     pdf = build_pack(ctx, attachments) if bank else build_claim_letter_pack(ctx, attachments)
     ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     inst = (asset.get("institution") or "bank").replace(" ", "-")[:40]

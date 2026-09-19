@@ -31,7 +31,7 @@ Most families never hear about any of this.
 | **Fill** | One tap produces a claim pack. For banks, RBI's Annex forms are printed **on the official form pages themselves** (tick boxes ticked, non-applicable options struck, amount in words). For MF, shares, insurance, PF, NPS and small savings: a plan sheet and a pre-filled claim letter. | pypdf overlay on the official template (hash-checked) + reportlab; Textract + Comprehend for masking |
 | **Plan** | Every asset gets a numbered plan: what applies (with the rule and source), documents (tick what you have, "how to get it" for the rest), forms, who signs and what needs stamp paper, where to submit, and a tracker. | Playbooks as data from SEBI, AMFI, IRDAI, EPFO and India Post sources |
 | **Guides** | Missing a document? Death certificate (incl. late registration), legal heir and succession certificates, probate, stamp paper, notary, affidavits: who issues it, steps, time, cost. | `guides.json` + web-grounded "ask for my state" |
-| **Follow up** | Upload the bank's acknowledgement and a 15-day clock starts. Reminders on day 10 and 14. If late, compensation is calculated and the letter to the bank drafted. After 30 more days, an RBI Ombudsman draft. | Step Functions with callback tokens |
+| **Follow up** | Upload the bank's acknowledgement and a 15-day clock starts. Reminders on day 10 and 14. If late, compensation is calculated and the letter to the bank drafted. Once the family says they sent it, a 30-day reply period starts; if unresolved, an RBI Ombudsman draft. | Step Functions with callback tokens |
 | **Ask** | "Explain in simple words" (English/Hindi), or search the web with citations. Personal data is stripped first. | Bedrock: explanations with **OpenAI gpt-oss-120b in Mumbai** (stays in India); web search with **Amazon Nova 2 Lite + Nova Web Grounding** |
 | **Family** | Lead, heirs and helpers. Helpers see masked previews only and can never download originals. | **Amazon Verified Permissions (Cedar)** `forbid` policy |
 
@@ -62,7 +62,7 @@ Full details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): the data mod
   - forms on the official pages, claim letters, passbook parsing, playbook slabs (MF ₹5/10 lakh, demat ₹15 lakh, Form-11 ₹5 lakh), masking, the PII firewall, assistant jobs
   - Cedar policies validated with `cedarpy`, with a 28-case decision matrix
 - `python -m afterloss.rules.verify` re-hashes the RBI source and confirms **27/27 quotes appear word for word**.
-- `scripts/e2e.py`: **18/18 live checks** on AWS (scan, route, pack, masking, Cedar denials, full clock → letter → Ombudsman draft, grounded answer with citations).
+- `scripts/e2e.py`: **24/24 live checks** on AWS (scan, route, pack, masking, Cedar denials, helper redaction, outdated packs, full clock → letter → complaint sent → Ombudsman draft, grounded answer with citations).
 
 ## Run it
 

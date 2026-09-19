@@ -61,9 +61,25 @@
       "ResultSelector": {"late.$": "$.Payload"},
       "ResultPath": "$.lateResult",
       "Retry": [{"ErrorEquals": ["States.ALL"], "IntervalSeconds": 2, "MaxAttempts": 3, "BackoffRate": 2}],
+      "Next": "AskComplaintSent"
+    },
+    "AskComplaintSent": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {"FunctionName": "${ClockFunctionArn}", "Payload": {"action": "ask", "stage": "complaint_sent", "taskToken.$": "$$.Task.Token", "input.$": "$"}},
+      "ResultPath": "$.complaint",
+      "Next": "ComplaintSent"
+    },
+    "ComplaintSent": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {"FunctionName": "${ClockFunctionArn}", "Payload": {"action": "complaint_sent", "input.$": "$"}},
+      "ResultSelector": {"sent.$": "$.Payload"},
+      "ResultPath": "$.complaintResult",
+      "Retry": [{"ErrorEquals": ["States.ALL"], "IntervalSeconds": 2, "MaxAttempts": 3, "BackoffRate": 2}],
       "Next": "WaitBankReply"
     },
-    "WaitBankReply": {"Type": "Wait", "TimestampPath": "$.lateResult.late.replyDueAt", "Next": "AskResolved"},
+    "WaitBankReply": {"Type": "Wait", "TimestampPath": "$.complaintResult.sent.replyDueAt", "Next": "AskResolved"},
     "AskResolved": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",

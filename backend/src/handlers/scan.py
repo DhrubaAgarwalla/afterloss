@@ -11,6 +11,26 @@ from afterloss.privacy import mask_image
 from .api import deps
 from .http import api, email_of, params
 
+MAX_MASK_PAGES = 25
+
+
+def _pages_for_masking(data: bytes, content_type: str) -> tuple[list[bytes], int]:
+    """Render every supported page before masking; never silently keep only PDF page one."""
+    if data[:5] != b"%PDF-":
+        return [ocr.to_png(data, content_type)], 1
+
+    import io
+
+    import pypdfium2 as pdfium
+
+    pdf = pdfium.PdfDocument(data)
+    pages = []
+    for page_no in range(min(len(pdf), MAX_MASK_PAGES)):
+        buf = io.BytesIO()
+        pdf[page_no].render(scale=2).to_pil().convert("RGB").save(buf, format="PNG")
+        pages.append(buf.getvalue())
+    return pages, len(pdf)
+
 
 def _ocr_statement(data: bytes, content_type: str) -> dict:
     """Scanned statement: render up to 3 pages, OCR each with Textract, parse the text lines."""
@@ -40,15 +60,26 @@ def _ocr_statement(data: bytes, content_type: str) -> dict:
 
 def mask_document(store, cd, doc: dict) -> dict:
     data = files.get_bytes(doc["s3Key"])
-    png = ocr.to_png(data, doc.get("contentType", ""))
-    words = ocr.detect_words(png)
-    masked, count = mask_image(png, words)
-    key = doc["s3Key"] + ".masked.png"
-    files.put_bytes(key, masked, "image/png")
-    pii = sorted({e["type"] for e in comprehend_pii(" ".join(w["text"] for w in words))})
-    store.update(svc.pk(cd.case_id), doc["SK"], {"maskedKey": key, "maskedCount": count, "status": "processed",
-                                                 "piiTypes": pii})
-    return {"maskedCount": count, "piiTypes": pii}
+    pages, total_pages = _pages_for_masking(data, doc.get("contentType", ""))
+    masked_keys: list[str] = []
+    words: list[dict] = []
+    masked_count = 0
+    for page_no, png in enumerate(pages, 1):
+        page_words = ocr.detect_words(png)
+        masked, count = mask_image(png, page_words)
+        suffix = ".masked.png" if total_pages == 1 else f".page-{page_no}.masked.png"
+        key = doc["s3Key"] + suffix
+        files.put_bytes(key, masked, "image/png")
+        masked_keys.append(key)
+        words.extend(page_words)
+        masked_count += count
+    pii = sorted({e["type"] for e in comprehend_pii(" ".join(w["text"] for w in words))}) if words else []
+    fields = {"maskedKey": masked_keys[0] if masked_keys else "", "maskedKeys": masked_keys,
+              "maskedPagesTotal": total_pages, "maskedCount": masked_count, "status": "processed",
+              "piiTypes": pii}
+    store.update(svc.pk(cd.case_id), doc["SK"], fields)
+    return {"maskedCount": masked_count, "maskedPages": len(masked_keys), "totalPages": total_pages,
+            "piiTypes": pii}
 
 
 def process(event):
@@ -88,6 +119,10 @@ def process(event):
         return 200, {"fields": fields, "lineCount": len(lines), "maskedCount": count}
     if kind in {"id_proof", "death_certificate"}:
         res = mask_document(store, cd, doc)
+        # These copies are embedded in generated packs. A newly processed copy makes any older pack incomplete.
+        for asset in cd.assets:
+            if doc.get("assetId") in ("", asset["assetId"]):
+                svc.reroute(store, cd, asset)
         if res["maskedCount"]:
             svc.add_event(store, cd.case_id, "masked", f"Masked {res['maskedCount']} Aadhaar number(s) on "
                           f"{doc.get('filename')} (last 4 digits kept).", email)

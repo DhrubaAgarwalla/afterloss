@@ -15,10 +15,10 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 | Forms and packs (RBI Annex I-A to I-E) + tests | ✅ printed on the **official RBI form pages** (overlay), letters, Ombudsman draft; pre-filled claim letters for every other asset |
 | Guided flow v2 (`docs/FLOW.md`) | ✅ 7-step setup, claim plan per asset, guides for missing documents |
 | Infrastructure (SAM template) | ✅ stack `afterloss` live in ap-south-1 |
-| Lambda handlers | ✅ 18/18 live end-to-end checks · 107 unit tests |
+| Lambda handlers | ✅ 24/24 live end-to-end checks · 132 unit tests |
 | Frontend (React, EN/HI) | ✅ 8 screens, Hindi + English, PWA-ready, Capacitor config |
 | Deploy to AWS | ✅ Backend + website: https://d30k8rjq3ol5ah.cloudfront.net |
-| Assistant (Nova 2 Lite + Web Grounding) | ✅ fixed 19 Sep: async jobs (no 30 s timeout), crash fixed, answers render bullets |
+| Assistant | ✅ Explain on **gpt-oss-120b in Mumbai** (live 19 Sep), web search on Nova 2 Lite + Web Grounding; async jobs, no 30 s timeout |
 | Demo data, README, video script | ✅ sample statement, README, `docs/DEMO_SCRIPT.md` · ⏳ video |
 
 ## Needs from you
@@ -36,6 +36,42 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 ---
 
 ## Log
+
+### 2026-09-19 18:45 IST: Correctness and email-evidence updates reviewed, fixed and deployed
+**What**
+- Reviewed the new updates (slices 1–3 and 6 of `docs/PRODUCT_REVIEW_AND_EMAIL_AI_PLAN.md`) and deployed them:
+  - **People per claim:** each claim chooses its own claimants or nominee, the heirs who sign Annex I-D and the I-E declarant, and its pack uses only them. Older claims fall back to the family roles.
+  - **Honest statuses:** changing anything a pack depends on (the claim's people, amount, family, the deceased's details, a newly masked ID) marks the old pack **outdated**. It can't be downloaded any more (409) and the claim asks for a fresh one. The checklist counts a form as ready only when the current pack contains it.
+  - **Complaint follow-up:** the 30-day reply period starts from the date the family confirms the letter was **sent** (a new Step Functions step; a drafted letter starts nothing). "Paid" records the date the money actually arrived. The last stage reads "Ombudsman draft ready", not "Escalated".
+  - **Privacy:** helpers no longer receive addresses, ID digits, phone numbers or payee accounts. Gmail connections belong to the current case and user and are revoked when you leave the screen.
+  - **Every page:** multi-page PDF IDs and death certificates are masked and attached page by page (up to 25), and anything left out is listed.
+  - **Gmail evidence:**
+    - Each finding keeps its message IDs and a sample subject.
+    - Marketing mail is marked "needs review".
+    - HDFC Bank, HDFC Life and HDFC Securities stay separate.
+    - A failed search is reported without losing the rest.
+  - **Flow:**
+    - "Open a case" asks what to do first: find assets, prepare a known claim, or follow up.
+    - Demo speed is off by default, under "Advanced testing settings".
+    - The mobile bar shows Today, Find, Claims and Docs, plus a More menu with sign-out.
+- Fixed during the review:
+  - Reconnecting the same Gmail account no longer revokes the live connection (Google's revoke removes the whole grant).
+  - Short names (SBI, LIC, PNB) now match and merge across inboxes.
+  - The "other heirs signing I-D" choice no longer disappears once cleared (before, there was no way back).
+  - The date money arrived is validated on the server; a bad or future date would have failed the claim clock's execution.
+  - `deploy-backend.ps1` now passes the model settings explicitly. SAM keeps a stack's previous parameter values, so the first deploy still ran Explain on Nova; it now runs on **gpt-oss-120b in ap-south-1**.
+- Checks:
+  - Locally: 132 backend tests, the Gmail classifier, the typecheck and the build all pass.
+  - Live end-to-end: **24/24**. New checks cover helper redaction, the outdated-pack 409, the complaint-sent step and "Ombudsman draft ready".
+  - Live Explain on gpt-oss: **5/5 trap questions right** (stamp paper, who may sign I-E, "not given here" for Karnataka stamp duty, Hindi terms), about 2 s each.
+
+**Why**
+- You asked to check the new updates and deploy them.
+
+**Left**
+- The signed-in screens (new home, mobile More menu, "People on this claim") are verified by the build and the live API only, because the browser pane is signed out. Worth a quick look on a phone.
+- Slices 4–5 of the plan (reading email bodies with a model, with consent) are deliberately not started.
+- Video and submission.
 
 ### 2026-09-19 08:30 IST: Explanations move to gpt-oss-120b in Mumbai; AI prompt fixes
 **What**

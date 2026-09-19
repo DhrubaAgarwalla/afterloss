@@ -25,6 +25,16 @@ ASSET_FIELDS = {
     "ifsc", "nomineeName", "source", "identifiers", "include", "category", "customerId",
     # tracking outside the RBI clock: which documents the family has, and when it was submitted / paid
     "docsHave", "submittedOn", "receivedOn", "receivedAmount",
+    # claim-specific recipients. Older assets without these fields continue to use the case-level family roles.
+    "claimantPersonIds", "nomineePersonIds", "nonClaimantPersonIds", "declarantPersonId",
+}
+CLAIM_PERSON_LIST_FIELDS = ("claimantPersonIds", "nomineePersonIds", "nonClaimantPersonIds")
+PACK_MATERIAL_ASSET_FIELDS = ASSET_FIELDS - {
+    "include", "source", "category", "docsHave", "submittedOn", "receivedOn", "receivedAmount",
+}
+HELPER_PERSON_FIELDS = {
+    "type", "personId", "fullName", "relation", "isClaimant", "isNominee", "isNonClaimantHeir",
+    "isDeclarant", "guardianName", "guardianRelation",
 }
 DECEASED_FIELDS = (
     "placeOfDeath", "deathCertNo", "deathCertDate", "deathCertAuthority", "maritalStatus", "deceasedAddress",
@@ -194,11 +204,12 @@ def update_case(store, cd: CaseData, body: dict) -> dict:
         fields["panLast4"] = pan[-4:] if pan else ""
     if "setupDone" in body and isinstance(body["setupDone"], list):
         fields["setupDone"] = [s for s in SETUP_STEPS if s in body["setupDone"]]
-    will_changed = "will" in fields and fields["will"] != cd.meta.get("will")
+    pack_material_case_fields = {"deceasedName", "dod", "dob", "payment", *DECEASED_FIELDS}
+    pack_material_changed = any(k in pack_material_case_fields and fields[k] != cd.meta.get(k) for k in fields)
     updated = _clean(store.update(pk(cd.case_id), "META", fields))
-    if will_changed:
-        cd.meta.update(fields)
-        for a in cd.assets:  # a will changes bank routes (RBI para 11)
+    cd.meta.update(fields)
+    if pack_material_changed:
+        for a in cd.assets:  # case facts feed routes and every generated form
             reroute(store, cd, a)
     return updated
 
@@ -209,17 +220,34 @@ def case_view(cd: CaseData, email: str) -> dict:
     docs = []
     for d in cd.docs:
         dd = _clean(d)
-        dd["hasMaskedCopy"] = bool(d.get("maskedKey"))
+        dd["hasMaskedCopy"] = bool(d.get("maskedKey") or d.get("maskedKeys"))
         dd.pop("s3Key", None)
         dd.pop("maskedKey", None)
+        dd.pop("maskedKeys", None)
         docs.append(dd)
-    received = sum(float((a.get("clock") or {}).get("amountReceived") or 0) for a in cd.assets)
-    comp = sum(float(((a.get("clock") or {}).get("compensation") or {}).get("compensation_inr") or 0) for a in cd.assets)
+    selected_assets = [a for a in cd.assets if a.get("include") is not False]
+
+    def received_for(a: dict) -> float:
+        clock = a.get("clock") or {}
+        if "amountReceived" in clock:
+            return float(clock.get("amountReceived") or 0)
+        return float(a.get("receivedAmount") or 0)
+
+    received = sum(received_for(a) for a in selected_assets)
+    comp = sum(float(((a.get("clock") or {}).get("compensation") or {}).get("compensation_inr") or 0)
+               for a in selected_assets)
+    case = _clean(cd.meta)
+    people = [_clean(p) for p in cd.people]
+    if role == "helper":
+        # Helpers can coordinate names and claim roles, but do not need identity, contact or payout details.
+        case.pop("payment", None)
+        case.pop("panLast4", None)
+        people = [{k: v for k, v in p.items() if k in HELPER_PERSON_FIELDS} for p in people]
     return {
-        "case": _clean(cd.meta),
+        "case": case,
         "me": {"email": email, "role": role},
         "members": [_clean(m) for m in cd.members],
-        "people": [_clean(p) for p in cd.people],
+        "people": people,
         "leads": [_clean(l) for l in cd.leads],
         "assets": assets,
         "documents": docs,
@@ -227,12 +255,13 @@ def case_view(cd: CaseData, email: str) -> dict:
         "waitingFor": [{"assetId": t["SK"].split("#")[1], "stage": t["SK"].split("#")[2]} for t in cd.tokens],
         "totals": {
             "leadsNew": sum(1 for l in cd.leads if l.get("status") == "new"),
-            "assets": len(cd.assets),
-            "claimsRunning": sum(1 for a in cd.assets if a.get("status") in {"clock_running", "late", "escalated"}),
+            "assets": len(selected_assets),
+            "claimsRunning": sum(1 for a in selected_assets
+                                 if a.get("status") in {"clock_running", "late", "escalated"}),
             "received": round(received, 2),
             "compensation": round(comp, 2),
-            "expected": round(sum(float(a.get("amount") or 0) for a in cd.assets
-                                  if a.get("assetType") in BANK_ASSETS), 2),
+            "expected": round(sum(float(a.get("amount") or 0) for a in selected_assets
+                                   if a.get("assetType") in BANK_ASSETS), 2),
         },
         "nextActions": next_actions(cd),
     }
@@ -242,13 +271,19 @@ def next_actions(cd: CaseData) -> list[dict]:
     acts = []
     tokens = {t["SK"].split("#", 1)[1] for t in cd.tokens}
     for a in cd.assets:
+        if a.get("include") is False:
+            continue
         aid, inst = a["assetId"], a.get("institution") or "this claim"
         if f"{aid}#settled" in tokens:
             acts.append({"kind": "answer", "assetId": aid, "text": f"Has the money from {inst} arrived?",
                          "textHi": f"क्या {inst} से पैसा आ गया?"})
+        elif f"{aid}#complaint_sent" in tokens:
+            acts.append({"kind": "answer", "assetId": aid,
+                         "text": f"Have you sent the complaint letter to {inst}?",
+                         "textHi": f"क्या आपने {inst} को शिकायत पत्र भेज दिया है?"})
         elif f"{aid}#resolved" in tokens:
-            acts.append({"kind": "answer", "assetId": aid, "text": f"Did {inst} reply to your letter?",
-                         "textHi": f"क्या {inst} ने आपके पत्र का जवाब दिया?"})
+            acts.append({"kind": "answer", "assetId": aid, "text": f"Did {inst} resolve the complaint?",
+                         "textHi": f"क्या {inst} ने शिकायत का समाधान किया?"})
     if not any(p.get("isClaimant") or p.get("isNominee") for p in cd.people):
         acts.append({"kind": "people", "text": "Add the family members who will sign the claims.",
                      "textHi": "दावों पर हस्ताक्षर करने वाले परिवार के सदस्य जोड़ें।"})
@@ -260,6 +295,8 @@ def next_actions(cd: CaseData) -> list[dict]:
         acts.append({"kind": "find", "text": "Upload a bank statement so we can look for assets.",
                      "textHi": "संपत्ति खोजने के लिए बैंक स्टेटमेंट अपलोड करें।"})
     for a in cd.assets:
+        if a.get("include") is False:
+            continue
         inst = a.get("institution") or "this claim"
         st = a.get("status")
         if st == "needs_info":
@@ -308,16 +345,42 @@ def upsert_person(store, cd: CaseData, person_id: str, body: dict) -> dict:
     if not (data.get("fullName") or store.get(pk(cd.case_id), f"PERSON#{person_id}")):
         raise ApiError(400, "Enter the person's full name.", "invalid")
     item = store.update(pk(cd.case_id), f"PERSON#{person_id}", {"type": "person", "personId": person_id, **data})
+    existing = next((person for person in cd.people if person.get("personId") == person_id), None)
+    if existing:
+        existing.update(item)
+    else:
+        cd.people.append(item)
+    # Family roles, names and payout details all feed claim routes or generated forms.
+    for asset in cd.assets:
+        reroute(store, cd, asset)
     return _clean(item)
 
 
 def delete_person(store, cd: CaseData, person_id: str) -> None:
     store.delete(pk(cd.case_id), f"PERSON#{person_id}")
+    cd.people = [person for person in cd.people if person.get("personId") != person_id]
+    for asset in cd.assets:
+        changes: dict[str, Any] = {}
+        for field_name in CLAIM_PERSON_LIST_FIELDS:
+            if field_name in asset and person_id in (asset.get(field_name) or []):
+                changes[field_name] = [value for value in asset[field_name] if value != person_id]
+        if asset.get("declarantPersonId") == person_id:
+            changes["declarantPersonId"] = ""
+        if changes:
+            update_asset(store, cd, asset["assetId"], changes, "")
+        else:
+            reroute(store, cd, asset)
 
 
 # ------------------------------------------------------------------ assets and leads
 
 def facts_for(cd: CaseData, a: dict) -> dict:
+    if "nonClaimantPersonIds" in a:
+        known_people = {p.get("personId") for p in cd.people}
+        non_claimant_heirs = sum(1 for person_id in a.get("nonClaimantPersonIds") or []
+                                 if person_id in known_people)
+    else:
+        non_claimant_heirs = sum(1 for p in cd.people if p.get("isNonClaimantHeir"))
     return {
         "asset_type": a.get("assetType") or "other",
         "bank_type": a.get("bankType") or None,
@@ -327,13 +390,14 @@ def facts_for(cd: CaseData, a: dict) -> dict:
         "dispute": bool(a.get("dispute")),
         "court_order": bool(a.get("courtOrder")),
         "joint": bool(a.get("joint")),
-        "non_claimant_heirs": sum(1 for p in cd.people if p.get("isNonClaimantHeir")),
+        "non_claimant_heirs": non_claimant_heirs,
         "legal_heir_certificate": bool(a.get("legalHeirCertificate")),
     }
 
 
 def route_status(route: dict, current: str | None) -> str:
-    if current in {"pack_ready", "clock_running", "late", "escalated", "settled", "settled_late", "resolved"}:
+    if current in {"pack_ready", "clock_running", "late", "escalated", "ombudsman_ready", "settled",
+                   "settled_late", "resolved"}:
         return current
     if route["route"] == "NEEDS_INFO":
         return "needs_info"
@@ -360,24 +424,80 @@ def _normalise_asset_fields(body: dict) -> dict:
         data["amount"] = None
     elif data.get("amount") is not None:
         data["amount"] = float(data["amount"])
+    for field_name in CLAIM_PERSON_LIST_FIELDS:
+        if field_name not in data:
+            continue
+        if not isinstance(data[field_name], (list, tuple)):
+            raise ValueError(f"{field_name} must be a list of person IDs")
+        seen = set()
+        person_ids = []
+        for raw_id in data[field_name]:
+            person_id = str(raw_id or "").strip()
+            if person_id and person_id not in seen:
+                seen.add(person_id)
+                person_ids.append(person_id)
+        data[field_name] = person_ids
+    if "declarantPersonId" in data:
+        data["declarantPersonId"] = str(data["declarantPersonId"] or "").strip()
     return data
+
+
+def _validate_claim_people(cd: CaseData, asset: dict) -> None:
+    people_by_id = {p.get("personId"): p for p in cd.people}
+    known_people = set(people_by_id)
+    for field_name in CLAIM_PERSON_LIST_FIELDS:
+        unknown = [person_id for person_id in asset.get(field_name) or [] if person_id not in known_people]
+        if unknown:
+            raise ValueError(f"{field_name} contains a person who is not in this case")
+        if any(people_by_id[person_id].get("isDeclarant") for person_id in asset.get(field_name) or []):
+            raise ValueError(f"{field_name} cannot include an independent declarant")
+    claimants = set(asset.get("claimantPersonIds") or []) | set(asset.get("nomineePersonIds") or [])
+    if claimants & set(asset.get("nonClaimantPersonIds") or []):
+        raise ValueError("A person cannot both claim and sign as a non-claimant")
+    declarant_id = asset.get("declarantPersonId")
+    if declarant_id and declarant_id not in known_people:
+        raise ValueError("declarantPersonId contains a person who is not in this case")
+    if declarant_id and not people_by_id[declarant_id].get("isDeclarant"):
+        raise ValueError("declarantPersonId must identify an independent declarant")
+
+
+def _stale_pack_documents(store, cd: CaseData, asset_id: str, stale_at: str) -> None:
+    for doc in cd.docs:
+        if doc.get("kind") != "pack" or doc.get("assetId") != asset_id or doc.get("status") == "stale":
+            continue
+        fields = {"status": "stale", "staleAt": stale_at}
+        store.update(pk(cd.case_id), doc["SK"], fields)
+        doc.update(fields)
 
 
 def reroute(store, cd: CaseData, asset: dict) -> dict:
     route = evaluate_asset(facts_for(cd, asset)).to_dict()
-    fields = {"route": route, "status": route_status(route, asset.get("status")), "routedAt": now_iso()}
+    stale_pack = asset.get("status") == "pack_ready"
+    routed_at = now_iso()
+    fields = {"route": route,
+              "status": route_status(route, None if stale_pack else asset.get("status")),
+              "routedAt": routed_at}
+    if stale_pack:
+        fields.update({"packDocId": "", "packStaleAt": routed_at})
     asset.update(fields)
-    return store.update(pk(cd.case_id), asset["SK"], fields)
+    updated = store.update(pk(cd.case_id), asset["SK"], fields)
+    if stale_pack:
+        _stale_pack_documents(store, cd, asset["assetId"], routed_at)
+    return updated
 
 
 def create_asset(store, cd: CaseData, body: dict, actor: str, lead_id: str | None = None) -> dict:
-    data = _normalise_asset_fields(body)
+    try:
+        data = _normalise_asset_fields(body)
+    except (TypeError, ValueError) as e:
+        raise ApiError(400, str(e), "invalid") from e
     if not data.get("assetType"):
         raise ApiError(400, "Choose what kind of asset this is.", "invalid")
     asset_id = new_id("a")
     item = {"PK": pk(cd.case_id), "SK": f"ASSET#{asset_id}", "type": "asset", "assetId": asset_id,
             "leadId": lead_id or "", "createdAt": now_iso(), "status": "draft", **data}
     try:
+        _validate_claim_people(cd, item)
         route = evaluate_asset(facts_for(cd, item)).to_dict()
     except ValueError as e:
         raise ApiError(400, str(e), "invalid") from e
@@ -392,13 +512,28 @@ def create_asset(store, cd: CaseData, body: dict, actor: str, lead_id: str | Non
 
 def update_asset(store, cd: CaseData, asset_id: str, body: dict, actor: str) -> dict:
     a = cd.asset(asset_id)
-    data = _normalise_asset_fields(body)
-    a.update(data)
     try:
-        store.update(pk(cd.case_id), a["SK"], data)
-        updated = reroute(store, cd, a)
-    except ValueError as e:
+        data = _normalise_asset_fields(body)
+        candidate = {**a, **data}
+        _validate_claim_people(cd, candidate)
+        route = evaluate_asset(facts_for(cd, candidate)).to_dict()
+    except (TypeError, ValueError) as e:
         raise ApiError(400, str(e), "invalid") from e
+
+    stale_pack = a.get("status") == "pack_ready" and any(
+        field_name in PACK_MATERIAL_ASSET_FIELDS and a.get(field_name) != value
+        for field_name, value in data.items()
+    )
+    routed_at = now_iso()
+    fields = {**data, "route": route,
+              "status": route_status(route, None if stale_pack else a.get("status")),
+              "routedAt": routed_at}
+    if stale_pack:
+        fields.update({"packDocId": "", "packStaleAt": routed_at})
+    updated = store.update(pk(cd.case_id), a["SK"], fields)
+    a.update(fields)
+    if stale_pack:
+        _stale_pack_documents(store, cd, asset_id, routed_at)
     return _clean(updated)
 
 
@@ -549,14 +684,35 @@ def submit_claim(store, cd: CaseData, asset_id: str, body: dict, actor: str,
 def answer_clock(store, cd: CaseData, asset_id: str, body: dict, actor: str,
                  send_fn: Callable[[str, dict], None]) -> dict:
     stage = body.get("stage") or "settled"
+    if stage not in {"settled", "complaint_sent", "resolved"}:
+        raise ApiError(400, "Unknown claim-clock question.", "invalid")
     tok = store.get(pk(cd.case_id), f"TOKEN#{asset_id}#{stage}")
     if not tok:
         raise ApiError(409, "The clock isn't waiting for this answer right now.", "not_waiting")
     if stage == "settled":
+        paid_on = str(body.get("paidOn") or "").strip()
+        if paid_on:  # the clock Lambda computes delay from this date; a bad one would fail the execution
+            try:
+                paid_day = date.fromisoformat(paid_on)
+            except ValueError as e:
+                raise ApiError(400, "Enter the date the money arrived as YYYY-MM-DD.", "invalid") from e
+            if paid_day > today_ist():
+                raise ApiError(400, "The date the money arrived can't be in the future.", "invalid")
+            paid_on = paid_day.isoformat()
         output = {"settled": bool(body.get("settled")), "amountReceived": float(body.get("amountReceived") or 0),
-                  "paidOn": body.get("paidOn") or ""}
+                  "paidOn": paid_on}
         text = "Family confirmed the money arrived." if output["settled"] else "Family said the money hasn't arrived."
-    else:
+    elif stage == "complaint_sent":
+        sent_on = str(body.get("sentOn") or "").strip()
+        try:
+            sent_day = date.fromisoformat(sent_on)
+        except ValueError as e:
+            raise ApiError(400, "Enter the date when the complaint was sent.", "invalid") from e
+        if not body.get("sent") or sent_day > today_ist():
+            raise ApiError(400, "Confirm this only after the complaint has been sent.", "invalid")
+        output = {"sent": True, "sentOn": sent_day.isoformat()}
+        text = f"Family confirmed the bank letter was sent on {output['sentOn']}."
+    else:  # resolved
         output = {"resolved": bool(body.get("resolved"))}
         text = "Family said the bank resolved it." if output["resolved"] else "Family said the bank hasn't resolved it."
     send_fn(tok["taskToken"], output)
@@ -574,16 +730,49 @@ def compensation_for(asset: dict, docs_complete: str, end: str, paid: bool) -> d
 
 # ------------------------------------------------------------------ pack context
 
+def _people_for_ids(people: list[dict], person_ids: list[str]) -> list[dict]:
+    by_id = {p.get("personId"): p for p in people}
+    return [by_id[person_id] for person_id in person_ids if person_id in by_id]
+
+
 def pack_context(cd: CaseData, asset: dict) -> dict:
     people = cd.people
-    claimants = [p for p in people if p.get("isClaimant")]
-    nominees = [p for p in people if p.get("isNominee")] or claimants
-    non_claimants = [p for p in people if p.get("isNonClaimantHeir")]
-    declarant = next((p for p in people if p.get("isDeclarant")), None)
+    has_claimants = "claimantPersonIds" in asset
+    has_nominees = "nomineePersonIds" in asset
+    if has_claimants or has_nominees:
+        claimants = _people_for_ids(people, asset.get("claimantPersonIds") or []) if has_claimants else []
+        nominees = _people_for_ids(people, asset.get("nomineePersonIds") or []) if has_nominees else []
+        if not has_claimants:
+            claimants = list(nominees)
+        if not has_nominees:
+            nominees = list(claimants)
+    else:
+        claimants = [p for p in people if p.get("isClaimant")]
+        nominees = [p for p in people if p.get("isNominee")] or claimants
+
+    if "nonClaimantPersonIds" in asset:
+        non_claimants = _people_for_ids(people, asset.get("nonClaimantPersonIds") or [])
+    else:
+        non_claimants = [p for p in people if p.get("isNonClaimantHeir")]
+
+    if "declarantPersonId" in asset:
+        declarant = next(iter(_people_for_ids(people, [asset.get("declarantPersonId") or ""])), None)
+    else:
+        declarant = next((p for p in people if p.get("isDeclarant")), None)
+
+    if any(field_name in asset for field_name in CLAIM_PERSON_LIST_FIELDS):
+        heirs, seen = [], set()
+        for person in claimants + nominees + non_claimants:
+            person_id = person.get("personId")
+            if person_id != (declarant or {}).get("personId") and person_id not in seen:
+                seen.add(person_id)
+                heirs.append(person)
+    else:
+        heirs = [p for p in people if not p.get("isDeclarant")]
     return {
         "case": {"deceasedName": cd.meta.get("deceasedName"), "dod": cd.meta.get("dod"), "dob": cd.meta.get("dob"),
                  **{k: cd.meta.get(k, "") for k in DECEASED_FIELDS}},
-        "heirs": [p for p in people if not p.get("isDeclarant")],
+        "heirs": heirs,
         "asset": {**_clean(asset), "accountNumbers": asset.get("accountNumbers") or []},
         "route": asset.get("route") or {},
         "claimants": claimants or nominees,

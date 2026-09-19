@@ -59,22 +59,22 @@ export default function DocumentsPage() {
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Card className="flex items-center justify-between gap-3">
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="font-semibold">{t("docs.idTitle", "ID proof")}</p>
             <p className="text-xs text-muted">{t("docs.idText", "Photo or PDF. We mask the Aadhaar number (Textract + Comprehend).")}</p>
           </div>
           <input ref={idRef} type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => e.target.files?.[0] && up(e.target.files[0], "id_proof")} />
-          <Button size="sm" loading={busy === "id_proof"} icon={<Upload className="size-4" />} onClick={() => idRef.current?.click()}>
+          <Button className="shrink-0" size="sm" loading={busy === "id_proof"} icon={<Upload className="size-4" />} onClick={() => idRef.current?.click()}>
             {t("docs.upload", "Upload")}
           </Button>
         </Card>
         <Card className="flex items-center justify-between gap-3">
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="font-semibold">{t("docs.dcTitle", "Death certificate")}</p>
             <p className="text-xs text-muted">{t("docs.dcText", "Attached to every claim pack.")}</p>
           </div>
           <input ref={dcRef} type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => e.target.files?.[0] && up(e.target.files[0], "death_certificate")} />
-          <Button size="sm" loading={busy === "death_certificate"} icon={<Upload className="size-4" />} onClick={() => dcRef.current?.click()}>
+          <Button className="shrink-0" size="sm" loading={busy === "death_certificate"} icon={<Upload className="size-4" />} onClick={() => dcRef.current?.click()}>
             {t("docs.upload", "Upload")}
           </Button>
         </Card>
@@ -91,12 +91,14 @@ export default function DocumentsPage() {
           {(view.documents as any[]).length === 0 && <li className="p-4 text-sm text-muted">{t("docs.none", "No documents yet.")}</li>}
           {(view.documents as any[]).map((d) => {
             const generated = ["pack", "letter", "ombudsman"].includes(d.kind);
+            const stale = d.kind === "pack" && d.status === "stale";
             return (
-              <li key={d.docId} className="flex flex-wrap items-center gap-3 p-4">
+              <li key={d.docId} className={`flex flex-wrap items-center gap-3 p-4 ${stale ? "bg-stone-50 opacity-75" : ""}`}>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{d.filename}</p>
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     <Chip>{hi ? KINDS[d.kind]?.hi : KINDS[d.kind]?.en}</Chip>
+                    {stale && <Chip tone="amber">{t("docs.outdated", "Outdated — make a fresh pack")}</Chip>}
                     {d.hasMaskedCopy && <Chip tone="green">{t("docs.maskedChip", "Masked copy ready")}</Chip>}
                     {d.maskedCount > 0 && <Chip tone="brand">{t("docs.aadhaarN", "{{n}} Aadhaar masked", { n: d.maskedCount })}</Chip>}
                   </div>
@@ -107,7 +109,7 @@ export default function DocumentsPage() {
                       {t("docs.viewMasked", "Masked copy")}
                     </Button>
                   )}
-                  <Button size="sm" variant="secondary" icon={<FileDown className="size-4" />} onClick={() => open(d, generated ? "preview" : "original")}>
+                  <Button size="sm" variant="secondary" disabled={stale} icon={<FileDown className="size-4" />} onClick={() => open(d, generated ? "preview" : "original")}>
                     {generated ? t("docs.open", "Open") : t("docs.original", "Original")}
                   </Button>
                 </div>

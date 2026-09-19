@@ -59,6 +59,7 @@ export const STATUS: Record<string, { en: string; hi: string; tone: "stone" | "b
   clock_running: { en: "15-day clock running", hi: "15 दिन की घड़ी चालू", tone: "blue" },
   late: { en: "Bank is late", hi: "बैंक देरी में", tone: "red" },
   escalated: { en: "Escalated to Ombudsman", hi: "लोकपाल तक पहुंचाया", tone: "red" },
+  ombudsman_ready: { en: "Ombudsman draft ready", hi: "लोकपाल मसौदा तैयार", tone: "amber" },
   settled: { en: "Settled on time", hi: "समय पर निपटा", tone: "green" },
   settled_late: { en: "Settled late", hi: "देरी से निपटा", tone: "amber" },
   resolved: { en: "Resolved", hi: "सुलझ गया", tone: "green" },

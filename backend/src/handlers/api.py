@@ -96,6 +96,8 @@ def doc_url(event):
     doc = cd.doc(params(event)["docId"])
     variant = (query(event).get("variant") or "original").lower()
     generated = doc.get("kind") in {"pack", "letter", "ombudsman"}
+    if doc.get("kind") == "pack" and doc.get("status") == "stale":
+        raise ApiError(409, "This pack is outdated. Make a fresh pack from the claim page.", "stale_pack")
     if variant == "original" and not generated:
         svc.require(authz, email, "DownloadOriginal", cd, doc)
         return 200, {"url": files.presign_get(doc["s3Key"], doc.get("filename")), "variant": "original"}

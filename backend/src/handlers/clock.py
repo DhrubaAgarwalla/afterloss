@@ -1,6 +1,6 @@
 """Step Functions task Lambda for the claim clock (see backend/statemachines/claim_clock.asl.json).
 
-Actions: schedule, remind, ask, settled, late, resolved, ombudsman.
+Actions: schedule, remind, ask, settled, late, complaint_sent, resolved, ombudsman.
 Demo mode: `secondsPerDay` < 86400 compresses days into seconds so the whole
 15-day clock can run on camera. Dates in letters stay in real calendar terms
 (documents-complete date + elapsed "days").
@@ -88,8 +88,12 @@ def ask(store, cd, asset, inp, stage: str, token: str):
     inst = asset.get("institution") or "the bank"
     if stage == "settled":
         text, hi = (f"Day 15 is over. Has the money from {inst} arrived?", f"15 दिन पूरे। क्या {inst} से पैसा आया?")
+    elif stage == "complaint_sent":
+        text, hi = (f"Your complaint letter for {inst} is ready. Tell us after you send it so the 30-day response period starts.",
+                    f"{inst} के लिए शिकायत पत्र तैयार है। भेजने के बाद बताएं, तभी 30 दिन की अवधि शुरू होगी।")
     else:
-        text, hi = (f"30 days since your letter. Did {inst} resolve it?", f"आपके पत्र को 30 दिन हो गए। क्या {inst} ने समाधान किया?")
+        text, hi = (f"30 days since you sent the complaint. Did {inst} resolve it?",
+                    f"शिकायत भेजे 30 दिन हो गए। क्या {inst} ने समाधान किया?")
     svc.add_event(store, cd.case_id, "question", text, asset_id=asset["assetId"], text_hi=hi)
     _notify(cd, text, text + " Open the app to answer.")
     return {"ok": True}
@@ -127,8 +131,8 @@ def late(store, cd, asset, inp):
     doc = svc.record_generated_doc(store, cd.case_id, "letter", key,
                                    f"delay-letter-{(asset.get('institution') or 'bank').replace(' ', '-')}.pdf",
                                    asset["assetId"])
-    clock = {**(asset.get("clock") or {}), "stage": "waiting_bank_reply", "compensation": comp,
-             "bankLetterDate": today.isoformat(), "letterDocId": doc["docId"]}
+    clock = {**(asset.get("clock") or {}), "stage": "complaint_draft_ready", "compensation": comp,
+             "bankLetterDraftedOn": today.isoformat(), "letterDocId": doc["docId"]}
     store.update(svc.pk(cd.case_id), asset["SK"], {"status": "late", "clock": clock})
     inst = asset.get("institution") or "the bank"
     svc.add_event(store, cd.case_id, "late",
@@ -137,12 +141,31 @@ def late(store, cd, asset, inp):
                   asset_id=asset["assetId"],
                   text_hi=f"{inst} ने 15 दिन की समय सीमा चूकी। अब तक मुआवज़ा: ₹{comp.get('compensation_inr', 0):,.2f}। बैंक के लिए पत्र तैयार है।")
     _notify(cd, f"{inst} is late: letter ready", "Open the app to download the letter to the bank.")
+    return {"letterDocId": doc["docId"]}
+
+
+def complaint_sent(store, cd, asset, inp):
+    """Start the complaint-response period only after the family says the letter was sent."""
+    answer = inp.get("complaint") or {}
+    sent_on = answer.get("sentOn") or _logical_today(inp).isoformat()
+    try:
+        sent_day = date.fromisoformat(sent_on)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("complaint sent date must be YYYY-MM-DD") from exc
     spd = int(inp.get("secondsPerDay") or REAL_DAY)
     if spd >= REAL_DAY:
-        reply_due = datetime.combine(today + timedelta(days=30), time(9, 0), tzinfo=IST)
+        reply_due = datetime.combine(sent_day + timedelta(days=30), time(9, 0), tzinfo=IST)
     else:
         reply_due = datetime.now(timezone.utc) + timedelta(seconds=30 * spd)
-    return {"replyDueAt": _iso(reply_due), "letterDocId": doc["docId"]}
+    clock = {**(asset.get("clock") or {}), "stage": "waiting_bank_reply",
+             "complaintSentOn": sent_day.isoformat(), "replyDueDate": (sent_day + timedelta(days=30)).isoformat()}
+    store.update(svc.pk(cd.case_id), asset["SK"], {"clock": clock})
+    inst = asset.get("institution") or "the bank"
+    svc.add_event(store, cd.case_id, "complaint_sent",
+                  f"Complaint sent to {inst} on {sent_day.isoformat()}. Follow up after 30 days if unresolved.",
+                  asset_id=asset["assetId"],
+                  text_hi=f"{inst} को शिकायत {sent_day.isoformat()} को भेजी गई। समाधान न हो तो 30 दिन बाद आगे बढ़ें।")
+    return {"replyDueAt": _iso(reply_due), "complaintSentOn": sent_day.isoformat()}
 
 
 def resolved(store, cd, asset, inp):
@@ -157,15 +180,15 @@ def ombudsman(store, cd, asset, inp):
     store.delete(svc.pk(cd.case_id), f"TOKEN#{asset['assetId']}#resolved")
     today = _logical_today(inp)
     comp = svc.compensation_for(asset, inp["docsCompleteDate"], today.isoformat(), paid=False)
-    letter_date = (asset.get("clock") or {}).get("bankLetterDate") or today.isoformat()
+    letter_date = (asset.get("clock") or {}).get("complaintSentOn") or today.isoformat()
     pdf = build_ombudsman_draft(svc.pack_context(cd, asset), comp, bank_letter_date=letter_date, today=today.isoformat())
     key = f"cases/{cd.case_id}/letters/{asset['assetId']}-ombudsman-{svc.now_iso().replace(':', '')}.pdf"
     files.put_bytes(key, pdf, "application/pdf")
     doc = svc.record_generated_doc(store, cd.case_id, "ombudsman", key, "rbi-ombudsman-complaint-draft.pdf",
                                    asset["assetId"])
-    clock = {**(asset.get("clock") or {}), "stage": "escalated", "compensation": comp,
+    clock = {**(asset.get("clock") or {}), "stage": "ombudsman_draft_ready", "compensation": comp,
              "ombudsmanDocId": doc["docId"]}
-    store.update(svc.pk(cd.case_id), asset["SK"], {"status": "escalated", "clock": clock})
+    store.update(svc.pk(cd.case_id), asset["SK"], {"status": "ombudsman_ready", "clock": clock})
     svc.add_event(store, cd.case_id, "ombudsman",
                   f"No resolution from {asset.get('institution')}. Your RBI Ombudsman complaint draft is ready to file on "
                   f"cms.rbi.org.in. Compensation now: Rs {comp.get('compensation_inr', 0):,.2f}.",
@@ -190,6 +213,8 @@ def handler(event, context):
         return settled(store, cd, asset, inp)
     if action == "late":
         return late(store, cd, asset, inp)
+    if action == "complaint_sent":
+        return complaint_sent(store, cd, asset, inp)
     if action == "resolved":
         return resolved(store, cd, asset, inp)
     if action == "ombudsman":

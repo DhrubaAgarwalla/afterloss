@@ -185,10 +185,25 @@ def main():
     s, orig = call(th, "GET", f"/cases/{cid}/documents/{id_doc}/url?variant=original")
     check("heir can download original", s == 200, s)
 
+    s, hv = call(tp, "GET", f"/cases/{cid}", None, 200)
+    check("helper view hides addresses, ID digits and the payee account",
+          "payment" not in hv["case"] and all("address" not in p and "idLast4" not in p for p in hv["people"]))
+
     t0 = time.time()
     s, pack = call(tl, "POST", f"/cases/{cid}/assets/{aid}/pack", None, 201)
     pdf = get_bytes(pack["url"]) if s == 201 else b""
     check(f"claim pack PDF ({pack.get('pages')} pages) in {time.time() - t0:.1f}s", pdf[:5] == b"%PDF-")
+
+    # choosing the people for this claim changes the forms, so the old pack is withdrawn
+    ids = {p["fullName"]: p["personId"] for p in call(tl, "GET", f"/cases/{cid}")[1]["people"]}
+    s, _ = call(tl, "PATCH", f"/cases/{cid}/assets/{aid}", {
+        "claimantPersonIds": [ids["Sunita Sharma"], ids["Riya Sharma"]], "nomineePersonIds": [],
+        "nonClaimantPersonIds": [ids["Arjun Sharma"]], "declarantPersonId": ids["K. Venkatesh Rao"]}, 200)
+    s, old = call(tl, "GET", f"/cases/{cid}/documents/{pack['docId']}/url")
+    check("old pack is outdated after the claim's people change (409)", s == 409, s)
+    s, pack = call(tl, "POST", f"/cases/{cid}/assets/{aid}/pack", None, 201)
+    pdf = get_bytes(pack["url"]) if s == 201 else b""
+    check("fresh pack with the chosen people", pdf[:5] == b"%PDF-")
     (Path.home() / ".afterloss" / "e2e_pack.pdf").write_bytes(pdf)
 
     s, a = call(tl, "POST", f"/cases/{cid}/assets/{aid}/submit", {"docsCompleteDate": "2026-08-01"}, 200)
@@ -209,10 +224,17 @@ def main():
     s, _ = call(tl, "POST", f"/cases/{cid}/assets/{aid}/answer", {"stage": "settled", "settled": False}, 200)
     check("answered: not paid", s == 200)
     t0 = time.time()
-    v = wait_for("resolved", 180)
+    v = wait_for("complaint_sent", 180)
     letter = [d for d in (v or {}).get("documents", []) if d["kind"] == "letter"]
     comp = next((x for x in (v or {}).get("assets", []) if x["assetId"] == aid), {}).get("clock", {}).get("compensation", {})
     check(f"late → bank letter + compensation Rs {comp.get('compensation_inr')} ({comp.get('formula')})", bool(letter) and comp.get("rate_pct") == 9.5)
+    check("30-day wait does not start until the family says the letter was sent",
+          not any(w["assetId"] == aid and w["stage"] == "resolved" for w in (v or {}).get("waitingFor", [])))
+    today = time.strftime("%Y-%m-%d")
+    s, _ = call(tl, "POST", f"/cases/{cid}/assets/{aid}/answer", {"stage": "complaint_sent", "sent": True, "sentOn": today}, 200)
+    check("answered: complaint sent", s == 200)
+    v = wait_for("resolved", 180)
+    check(f"asked whether the bank resolved it, {time.time() - t0:.0f}s after the letter", v is not None)
     s, _ = call(tl, "POST", f"/cases/{cid}/assets/{aid}/answer", {"stage": "resolved", "resolved": False}, 200)
     end = time.time() + 60
     omb = []
@@ -220,7 +242,8 @@ def main():
         time.sleep(3)
         _, v = call(tl, "GET", f"/cases/{cid}")
         omb = [d for d in v.get("documents", []) if d["kind"] == "ombudsman"]
-    check("escalated → RBI Ombudsman draft", bool(omb))
+    status = next((x for x in v.get("assets", []) if x["assetId"] == aid), {}).get("status")
+    check(f"not resolved → RBI Ombudsman draft ready (status {status})", bool(omb) and status == "ombudsman_ready")
 
     s, ans = ask(tl, {"caseId": cid, "assetId": aid, "mode": "explain", "lang": "en",
                                            "question": "Why don't we need a succession certificate for this FD?"})

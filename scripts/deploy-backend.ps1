@@ -20,7 +20,16 @@ try {
   $samArgs = @("deploy", "--template-file", "template.yaml", "--stack-name", $Stack, "--region", $Region,
     "--capabilities", "CAPABILITY_IAM", "CAPABILITY_AUTO_EXPAND", "--resolve-s3",
     "--no-confirm-changeset", "--no-fail-on-empty-changeset")
-  if ($AlertEmail) { $samArgs += @("--parameter-overrides", "AlertEmail=$AlertEmail") }
+  # SAM keeps each parameter's previous value unless it is passed, so a new default in template.yaml would never
+  # reach the running stack. Pass the model defaults explicitly (AlertEmail only when given, so it isn't cleared).
+  $overrides = @()
+  if ($AlertEmail) { $overrides += "AlertEmail=$AlertEmail" }
+  $tpl = Get-Content "$root\backend\template.yaml" -Raw
+  foreach ($name in "ModelIdWeb", "ModelRegionWeb", "ModelIdExplain", "ModelRegionExplain") {
+    if ($tpl -match "(?m)^  ${name}:\s*\r?\n\s+Type:[^\r\n]*\r?\n\s+Default:\s*([^\s#]+)") { $overrides += "$name=$($Matches[1])" }
+    else { throw "No default for $name in template.yaml" }
+  }
+  $samArgs += @("--parameter-overrides") + $overrides
   & $sam @samArgs
   if ($LASTEXITCODE -ne 0) { throw "sam deploy failed ($LASTEXITCODE)" }
   & $aws cloudformation describe-stacks --stack-name $Stack --region $Region --profile $Profile `

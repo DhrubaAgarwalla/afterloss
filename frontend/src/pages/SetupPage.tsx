@@ -142,7 +142,7 @@ function StepFooter({ onBack, onSkip, onContinue, busy, label, error }: { onBack
   return (
     <div className="sticky bottom-0 z-20 -mx-3 space-y-2 border-t border-line bg-paper/95 px-3 py-3 backdrop-blur sm:-mx-4 sm:px-4 md:static md:mx-0 md:border-0 md:bg-transparent md:px-0">
       <ErrorNote error={error} />
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button variant="ghost" onClick={onBack} icon={<ArrowLeft className="size-4" />} aria-label={t("back", "Back")}>
           <span className="hidden sm:inline">{t("back", "Back")}</span>
         </Button>
@@ -152,7 +152,7 @@ function StepFooter({ onBack, onSkip, onContinue, busy, label, error }: { onBack
             {t("setup.skip", "Skip for now")}
           </Button>
         )}
-        <Button onClick={onContinue} loading={busy}>
+        <Button className="w-full sm:w-auto" onClick={onContinue} loading={busy}>
           {label ?? t("setup.continue", "Save and continue")} <ArrowRight className="size-4" />
         </Button>
       </div>

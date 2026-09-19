@@ -3,7 +3,8 @@
 Rules to remember: the video is **all the judges see**, **AWS must be visible on screen**, keep it **under 3 minutes**, upload to YouTube as **unlisted**, and **open the link in a signed-out browser** before submitting.
 
 Setup before recording:
-- Create a new case with **demo speed ON** (1 day = 4 s).
+- Create a new case and open **Advanced testing settings** to turn **demo speed** on (1 day = 4 s). It is off by default so real cases run in real time.
+- After "Not yet", tap **I sent the complaint**: the 30-day reply period starts only then (2 minutes at demo speed).
 - Add family (Sunita = wife, claimant; Riya = daughter, claimant; Arjun = son, not claiming; K. Venkatesh Rao = declarant).
 - Upload a sample ID in Documents (it gets masked).
 - Keep two browser tabs ready: the app, and the AWS console (Step Functions, DynamoDB, Verified Permissions, CloudWatch).

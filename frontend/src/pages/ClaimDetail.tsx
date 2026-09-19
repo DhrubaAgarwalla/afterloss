@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle, ArrowLeft, BellRing, BookOpen, CalendarCheck, CheckCircle2, Circle, ExternalLink, FileDown, FileText, Hourglass,
-  Landmark, MapPin, MessageCircleQuestion, PenLine, Printer, Scale, Stamp,
+  Landmark, MapPin, MessageCircleQuestion, PenLine, Printer, Scale, Stamp, UserRoundCheck,
 } from "lucide-react";
 import { api, rupees, uploadDocument } from "../lib/api";
 import { ASSET_TYPES, STATUS, useCase } from "../lib/case";
@@ -13,6 +13,32 @@ import { AssetForm, categoryFor } from "../components/AssetForm";
 import { Button, Card, Chip, Citation, ErrorNote, Field, inputCls, Toggle } from "../components/ui";
 
 const BANKISH = ["bank_deposit", "term_deposit", "locker", "safe_custody"];
+// RBI routes whose document list includes Annex I-D (no objection) when some heirs are not claiming.
+const ID_ROUTES = ["WILL", "SIMPLIFIED", "ABOVE_THRESHOLD", "LOCKER_SIMPLIFIED"];
+
+const owns = (value: any, key: string) => Object.prototype.hasOwnProperty.call(value ?? {}, key);
+
+function peopleForClaim(a: any, people: any[]) {
+  const byId = new Map(people.map((person) => [person.personId, person]));
+  const nomineeClaim = a.nomination === "nominee";
+  const primaryKey = nomineeClaim ? "nomineePersonIds" : "claimantPersonIds";
+  const fallbackPrimary = nomineeClaim
+    ? people.filter((person) => person.isNominee)
+    : people.filter((person) => person.isClaimant);
+  const alternatePrimary = nomineeClaim
+    ? people.filter((person) => person.isClaimant)
+    : people.filter((person) => person.isNominee);
+  const primary = owns(a, primaryKey)
+    ? (a[primaryKey] ?? []).map((id: string) => byId.get(id)).filter(Boolean)
+    : fallbackPrimary.length ? fallbackPrimary : alternatePrimary;
+  const nonClaimants = owns(a, "nonClaimantPersonIds")
+    ? (a.nonClaimantPersonIds ?? []).map((id: string) => byId.get(id)).filter(Boolean)
+    : people.filter((person) => person.isNonClaimantHeir);
+  const declarant = owns(a, "declarantPersonId")
+    ? byId.get(a.declarantPersonId)
+    : people.find((person) => person.isDeclarant);
+  return { nomineeClaim, primary, nonClaimants, declarant };
+}
 
 export default function ClaimDetail() {
   const { assetId = "" } = useParams();
@@ -68,7 +94,10 @@ export default function ClaimDetail() {
           </PlanStep>
           {r.automation !== "stop" && (
             <PlanStep n={3} title={liability ? t("plan.s3l", "Letter, filled for you") : t("plan.s3", "Forms, filled for you")}>
-              <PackCard a={a} />
+              <div className="space-y-3">
+                <ClaimPeopleCard a={a} />
+                <PackCard a={a} />
+              </div>
             </PlanStep>
           )}
           <PlanStep n={4} title={t("plan.s4", "Sign, stamp and submit")}>
@@ -134,9 +163,11 @@ function DocsChecklist({ a }: { a: any }) {
   const [have, setHave] = useState<Record<string, boolean>>(a.docsHave ?? {});
   const [error, setError] = useState<unknown>(null);
   const docs: any[] = r.documents ?? [];
-  const uploaded = new Set((view.documents as any[]).map((d) => d.kind));
-  const isFilled = (d: any) => (d.form && forms.includes(d.form) && BANKISH.includes(a.assetType)) || (!BANKISH.includes(a.assetType) && d.id === "claim_letter");
-  const autoHave = (d: any) => isFilled(d) || (d.id === "death_certificate" && uploaded.has("death_certificate"));
+  const uploaded = new Set((view.documents as any[]).filter((d) => d.status !== "pending").map((d) => d.kind));
+  const currentPack = (view.documents as any[]).some((d) => d.docId === a.packDocId && d.kind === "pack" && d.status !== "stale");
+  const managedForm = (d: any) => (d.form && forms.includes(d.form) && BANKISH.includes(a.assetType)) || (!BANKISH.includes(a.assetType) && d.id === "claim_letter");
+  const generated = (d: any) => managedForm(d) && currentPack;
+  const autoHave = (d: any) => generated(d) || (d.id === "death_certificate" && uploaded.has("death_certificate"));
   const ready = docs.filter((d) => have[d.id] || autoHave(d)).length;
 
   async function toggle(id: string) {
@@ -160,17 +191,18 @@ function DocsChecklist({ a }: { a: any }) {
       </div>
       <ul className="space-y-2">
         {docs.map((d) => {
-          const filled = isFilled(d);
+          const filled = generated(d);
+          const appCreates = managedForm(d);
           const got = have[d.id] || autoHave(d);
           return (
             <li key={d.id} className="flex items-start gap-2.5 rounded-xl p-2 text-sm hover:bg-stone-50">
               <button
                 type="button"
                 className="focus-ring mt-0.5 shrink-0 rounded-full"
-                onClick={() => !filled && toggle(d.id)}
+                onClick={() => !appCreates && toggle(d.id)}
                 aria-pressed={got}
                 aria-label={t("plan.iHaveIt", "I have it")}
-                disabled={filled}
+                disabled={appCreates}
               >
                 {got ? <CheckCircle2 className="size-5 text-brand-700" /> : <Circle className="size-5 text-stone-400" />}
               </button>
@@ -178,7 +210,9 @@ function DocsChecklist({ a }: { a: any }) {
                 <span className={got ? "text-muted" : ""}>{hi ? d.hi || d.en : d.en}</span>
                 <span className="mt-1 flex flex-wrap gap-2">
                   {filled ? (
-                    <Chip tone="brand">{t("claim.inPack", "Filled in pack")}</Chip>
+                    <Chip tone="brand">{t("claim.inPack", "Prepared in current pack")}</Chip>
+                  ) : appCreates ? (
+                    <Chip tone="amber">{t("claim.makePackFirst", "Create the claim pack below")}</Chip>
                   ) : d.at_branch ? (
                     <Chip>{t("claim.atBranch", "At the branch")}</Chip>
                   ) : d.guide && !got ? (
@@ -186,7 +220,7 @@ function DocsChecklist({ a }: { a: any }) {
                       <BookOpen className="size-3.5" /> {t("plan.howToGet", "How to get it")}
                     </Link>
                   ) : null}
-                  {d.form && !filled && <Chip tone="blue">{t("plan.officialForm", "Official form: {{f}}", { f: d.form })}</Chip>}
+                  {d.form && !appCreates && <Chip tone="blue">{t("plan.officialForm", "Official form: {{f}}", { f: d.form })}</Chip>}
                 </span>
               </span>
             </li>
@@ -205,9 +239,10 @@ function SubmitGuide({ a }: { a: any }) {
   const { caseId, view } = useCase();
   const r = a.route ?? {};
   const bank = BANKISH.includes(a.assetType);
-  const claimants = (view.people as any[]).filter((p) => p.isClaimant || p.isNominee);
-  const others = (view.people as any[]).filter((p) => p.isNonClaimantHeir);
-  const declarant = (view.people as any[]).find((p) => p.isDeclarant);
+  const claimPeople = peopleForClaim(a, view.people as any[]);
+  const claimants = claimPeople.primary;
+  const others = claimPeople.nonClaimants;
+  const declarant = claimPeople.declarant;
   const stampForms = bank ? (r.forms ?? []).filter((f: string) => ["I-C", "I-D", "I-E", "I-H"].includes(f)) : [];
   const state = view.case.deceasedState;
   return (
@@ -216,7 +251,7 @@ function SubmitGuide({ a }: { a: any }) {
         <PenLine className="mt-0.5 size-4 shrink-0 text-brand-700" />
         <span>
           <span className="font-semibold">{t("plan.whoSigns", "Who signs")}: </span>
-          {[...claimants.map((p) => p.fullName), ...(bank && others.length ? others.map((p) => `${p.fullName} (I-D)`) : []), ...(bank && declarant && (r.forms ?? []).includes("I-E") ? [`${declarant.fullName} (I-E)`] : [])].join(", ") ||
+          {[...claimants.map((p: any) => p.fullName), ...(bank && others.length ? others.map((p: any) => `${p.fullName} (I-D)`) : []), ...(bank && declarant && (r.forms ?? []).includes("I-E") ? [`${declarant.fullName} (I-E)`] : [])].join(", ") ||
             t("plan.addPeople", "Add the family first")}
         </span>
       </p>
@@ -409,13 +444,172 @@ function RouteCard({ a }: { a: any }) {
   );
 }
 
+function ClaimPeopleCard({ a }: { a: any }) {
+  const { t } = useTranslation();
+  const { caseId, view, reload } = useCase();
+  const people = view.people as any[];
+  const selectable = people.filter((person) => !person.isDeclarant);
+  const declarants = people.filter((person) => person.isDeclarant);
+  const forms: string[] = a.route?.forms ?? [];
+  // Annex I-D appears only once someone is marked as not claiming, so offer the choice on every route that
+  // can need it; otherwise clearing the list would hide the only way back.
+  const needsNonClaimants = forms.includes("I-D") || ID_ROUTES.includes(a.route?.route);
+  const needsDeclarant = forms.includes("I-E");
+  const [primaryIds, setPrimaryIds] = useState<string[]>([]);
+  const [nonClaimantIds, setNonClaimantIds] = useState<string[]>([]);
+  const [declarantId, setDeclarantId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const claimPeople = peopleForClaim(a, people);
+  const selectionConfirmed = owns(a, claimPeople.nomineeClaim ? "nomineePersonIds" : "claimantPersonIds");
+
+  useEffect(() => {
+    const selected = peopleForClaim(a, people);
+    setPrimaryIds(selected.primary.map((person: any) => person.personId));
+    setNonClaimantIds(selected.nonClaimants.map((person: any) => person.personId));
+    setDeclarantId(selected.declarant?.personId ?? "");
+    setSaved(false);
+  }, [a, people]);
+
+  function toggle(id: string, ids: string[], setIds: (next: string[]) => void) {
+    setSaved(false);
+    setIds(ids.includes(id) ? ids.filter((personId) => personId !== id) : [...ids, id]);
+  }
+
+  if (!selectable.length) {
+    return (
+      <Card className="space-y-2">
+        <p className="flex items-center gap-2 font-semibold"><UserRoundCheck className="size-5 text-brand-700" /> {t("claim.peopleForClaim", "People on this claim")}</p>
+        <p className="text-sm text-muted">{t("claim.addFamilyToChoose", "Add family members, then choose who is making this claim.")}</p>
+        <Link className="inline-flex text-sm font-medium text-brand-700 underline" to="../../setup/family" relative="path">
+          {t("claim.addFamily", "Add family members")}
+        </Link>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="space-y-4">
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700"><UserRoundCheck className="size-5" /></span>
+        <div>
+          <p className="font-semibold">{t("claim.peopleForClaim", "People on this claim")}</p>
+          <p className="text-sm text-muted">
+            {claimPeople.nomineeClaim
+              ? t("claim.chooseNominee", "Choose the registered nominee for this account.")
+              : t("claim.chooseClaimants", "Choose only the people claiming this asset. This keeps every generated form accurate.")}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        {selectable.map((person) => {
+          const selected = primaryIds.includes(person.personId);
+          return (
+            <button
+              key={person.personId}
+              type="button"
+              role="checkbox"
+              aria-checked={selected}
+              className={`focus-ring flex min-h-12 items-center gap-3 rounded-xl px-3 py-2 text-left ring-1 transition-colors ${selected ? "bg-brand-50 text-brand-950 ring-brand-300" : "bg-white ring-line hover:bg-stone-50"}`}
+              onClick={() => toggle(person.personId, primaryIds, setPrimaryIds)}
+            >
+              {selected ? <CheckCircle2 className="size-5 shrink-0 text-brand-700" /> : <Circle className="size-5 shrink-0 text-stone-400" />}
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">{person.fullName}</span>
+                {person.relation && <span className="block text-xs text-muted">{person.relation}</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {needsNonClaimants && selectable.some((person) => !primaryIds.includes(person.personId)) && (
+        <div className="space-y-2 border-t border-line pt-3">
+          <p className="text-sm font-medium">{t("claim.nonClaimantSigners", "Other heirs signing the no-objection form")}</p>
+          <div className="flex flex-wrap gap-2">
+            {selectable.filter((person) => !primaryIds.includes(person.personId)).map((person) => {
+              const selected = nonClaimantIds.includes(person.personId);
+              return (
+                <button
+                  key={person.personId}
+                  type="button"
+                  aria-pressed={selected}
+                  className={`focus-ring rounded-full px-3 py-1.5 text-sm ring-1 ${selected ? "bg-amber-50 text-amber-900 ring-amber-300" : "bg-white text-muted ring-line"}`}
+                  onClick={() => toggle(person.personId, nonClaimantIds, setNonClaimantIds)}
+                >
+                  {selected ? "✓ " : "+ "}{person.fullName}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {needsDeclarant && (
+        <div className="space-y-2">
+          <Field label={t("claim.declarantForClaim", "Independent declarant for this claim") }>
+            <select className={inputCls} value={declarantId} onChange={(event) => { setDeclarantId(event.target.value); setSaved(false); }}>
+              <option value="">{t("claim.noDeclarant", "Choose a declarant")}</option>
+              {declarants.map((person) => <option key={person.personId} value={person.personId}>{person.fullName}</option>)}
+            </select>
+          </Field>
+          {!declarants.length && (
+            <Link className="inline-flex text-sm font-medium text-brand-700 underline" to="../../setup/family" relative="path">
+              {t("claim.addDeclarant", "Add an independent declarant under Family")}
+            </Link>
+          )}
+        </div>
+      )}
+
+      <ErrorNote error={error} />
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          size="sm"
+          variant="secondary"
+          loading={busy}
+          disabled={!primaryIds.length || (needsDeclarant && !declarantId)}
+          onClick={async () => {
+            setBusy(true);
+            setSaved(false);
+            setError(null);
+            try {
+              await api("PATCH", `/cases/${caseId}/assets/${a.assetId}`, {
+                claimantPersonIds: claimPeople.nomineeClaim ? [] : primaryIds,
+                nomineePersonIds: claimPeople.nomineeClaim ? primaryIds : [],
+                nonClaimantPersonIds: needsNonClaimants ? nonClaimantIds.filter((id) => !primaryIds.includes(id)) : [],
+                declarantPersonId: needsDeclarant ? declarantId : "",
+              });
+              await reload();
+              setSaved(true);
+            } catch (caught) {
+              setError(caught);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {selectionConfirmed
+            ? t("claim.savePeople", "Save people for this claim")
+            : t("claim.confirmPeople", "Confirm people for this claim")}
+        </Button>
+        {saved && <span className="text-sm font-medium text-green-800">✓ {t("saved", "Saved")}</span>}
+      </div>
+    </Card>
+  );
+}
+
 function PackCard({ a }: { a: any }) {
   const { t, i18n } = useTranslation();
   const { caseId, view, reload } = useCase();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const packs = (view.documents as any[]).filter((d) => d.kind === "pack" && d.assetId === a.assetId);
-  const noPeople = !(view.people as any[]).some((p) => p.isClaimant || p.isNominee);
+  const [omissions, setOmissions] = useState<string[]>([]);
+  const packs = (view.documents as any[]).filter((d) => d.kind === "pack" && d.assetId === a.assetId && d.status !== "stale");
+  const claimPeople = peopleForClaim(a, view.people as any[]);
+  const noPeople = claimPeople.primary.length === 0;
+  const selectionConfirmed = owns(a, claimPeople.nomineeClaim ? "nomineePersonIds" : "claimantPersonIds");
   const bank = BANKISH.includes(a.assetType);
 
   async function open(docId: string) {
@@ -434,18 +628,22 @@ function PackCard({ a }: { a: any }) {
           ? t("claim.packText", "RBI's standard forms, printed on the official format with your family's details, masked ID copies, and a checklist. Print, sign, submit.")
           : t("claim.packTextOther", "A pre-filled letter to {{inst}} with the death intimation and claim request, the document list, and the steps. Print, sign, submit with their own form.", { inst: a.institution })}
       </p>
-      {noPeople && (
+      {(noPeople || !selectionConfirmed) && (
         <p className="rounded-xl bg-amber-50 p-2.5 text-sm text-amber-900">
-          {t("claim.needPeople", "Add the claimants under Family first.")}{" "}
-          <Link className="underline" to="../../setup/family" relative="path">
-            {t("nav.family", "Family")}
-          </Link>
+          {noPeople ? (
+            <>
+              {t("claim.needPeople", "Add the claimants under Family first.")}{" "}
+              <Link className="underline" to="../../setup/family" relative="path">
+                {t("nav.family", "Family")}
+              </Link>
+            </>
+          ) : t("claim.confirmPeopleFirst", "Confirm and save the people above before generating the pack.")}
         </p>
       )}
       <ErrorNote error={error} />
       <Button
         loading={busy}
-        disabled={noPeople}
+        disabled={noPeople || !selectionConfirmed}
         icon={<FileDown className="size-4" />}
         onClick={async () => {
           setBusy(true);
@@ -453,6 +651,7 @@ function PackCard({ a }: { a: any }) {
           const win = window.open("", "_blank");
           try {
             const r: any = await api("POST", `/cases/${caseId}/assets/${a.assetId}/pack`);
+            setOmissions(r.skippedUnmasked ?? []);
             if (win) win.location.href = r.url;
             else window.open(r.url, "_blank");
             await reload();
@@ -466,6 +665,11 @@ function PackCard({ a }: { a: any }) {
       >
         {packs.length ? t("claim.regenerate", "Make a fresh pack") : t("claim.generate", "Generate claim pack")}
       </Button>
+      {omissions.length > 0 && (
+        <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">
+          {t("claim.omitted", "Not included because a safe masked copy was unavailable: {{files}}. Mask or attach these before submitting.", { files: omissions.join(", ") })}
+        </p>
+      )}
       {packs.length > 0 && (
         <ul className="space-y-1 text-sm">
           {packs.slice(0, 3).map((p) => (
@@ -554,19 +758,25 @@ function Clock({ a }: { a: any }) {
   }, [now, spd, c.startedAt, c.docsCompleteDate]);
   const waiting = (view.waitingFor as any[]).find((w) => w.assetId === a.assetId);
   const shownDay = waiting?.stage === "settled" ? Math.max(day, 15) : day;
-  const done = ["settled", "settled_late", "resolved", "escalated"].includes(a.status) || c.stage === "done";
+  const done = ["settled", "settled_late", "resolved", "escalated", "ombudsman_ready"].includes(a.status) || c.stage === "done";
   const pct = Math.min(100, (Math.min(shownDay, 15) / 15) * 100);
   const [amount, setAmount] = useState(String(a.amount || ""));
+  const [paidOn, setPaidOn] = useState(todayIso());
+  const [complaintSentOn, setComplaintSentOn] = useState(todayIso());
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
   const docs = view.documents as any[];
   const letter = docs.find((d) => d.docId === c.letterDocId);
   const omb = docs.find((d) => d.docId === c.ombudsmanDocId);
 
   async function answer(body: any) {
     setBusy(true);
+    setError(null);
     try {
       await api("POST", `/cases/${caseId}/assets/${a.assetId}/answer`, body);
       await reload();
+    } catch (e) {
+      setError(e);
     } finally {
       setBusy(false);
     }
@@ -577,7 +787,7 @@ function Clock({ a }: { a: any }) {
   }
 
   return (
-    <Card className="space-y-4" tone={a.status === "late" || a.status === "escalated" ? "amber" : "plain"}>
+    <Card className="space-y-4" tone={a.status === "late" || a.status === "escalated" || a.status === "ombudsman_ready" ? "amber" : "plain"}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Hourglass className="size-5 text-brand-700" />
@@ -617,7 +827,10 @@ function Clock({ a }: { a: any }) {
             <Field label={t("clock.amountReceived", "Amount received (₹)")}>
               <input className={inputCls + " w-40"} value={amount} onChange={(e) => setAmount(e.target.value)} />
             </Field>
-            <Button loading={busy} onClick={() => answer({ stage: "settled", settled: true, amountReceived: Number(amount || 0) })}>
+            <Field label={t("clock.paidOn", "Money received on")}>
+              <input className={inputCls + " w-44"} type="date" max={todayIso()} value={paidOn} onChange={(e) => setPaidOn(e.target.value)} />
+            </Field>
+            <Button loading={busy} onClick={() => answer({ stage: "settled", settled: true, amountReceived: Number(amount || 0), paidOn })}>
               {t("clock.yes", "Yes, it's paid")}
             </Button>
             <Button variant="danger" loading={busy} onClick={() => answer({ stage: "settled", settled: false })}>
@@ -626,10 +839,25 @@ function Clock({ a }: { a: any }) {
           </div>
         </div>
       )}
+      {waiting?.stage === "complaint_sent" && (
+        <div className="rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200">
+          <p className="flex items-center gap-2 font-semibold text-amber-900">
+            <BellRing className="size-5 pulse-soft" /> {t("clock.askComplaintSent", "Your complaint letter is ready. Start the 30-day response period only after you send it.")}
+          </p>
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            <Field label={t("clock.complaintSentOn", "Complaint sent on")}>
+              <input className={inputCls + " w-44"} type="date" max={todayIso()} value={complaintSentOn} onChange={(e) => setComplaintSentOn(e.target.value)} />
+            </Field>
+            <Button loading={busy} onClick={() => answer({ stage: "complaint_sent", sent: true, sentOn: complaintSentOn })}>
+              {t("clock.confirmSent", "I sent the complaint")}
+            </Button>
+          </div>
+        </div>
+      )}
       {waiting?.stage === "resolved" && (
         <div className="rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200">
           <p className="flex items-center gap-2 font-semibold text-amber-900">
-            <BellRing className="size-5 pulse-soft" /> {t("clock.askResolved", "30 days since your letter. Did the bank resolve it?")}
+            <BellRing className="size-5 pulse-soft" /> {t("clock.askResolved", "30 days since you sent the complaint. Did the bank resolve it?")}
           </p>
           <div className="mt-3 flex gap-2">
             <Button loading={busy} onClick={() => answer({ stage: "resolved", resolved: true })}>
@@ -641,6 +869,8 @@ function Clock({ a }: { a: any }) {
           </div>
         </div>
       )}
+
+      <ErrorNote error={error} />
 
       {c.compensation?.compensation_inr !== undefined && (
         <div className="rounded-2xl bg-white p-4 ring-1 ring-line">
