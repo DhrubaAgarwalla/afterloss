@@ -1,0 +1,4 @@
+{
+  "googleClientId": "",
+  "note": "OAuth 2.0 Web client ID from Google Cloud (ends in .apps.googleusercontent.com). It is public by design; never put a client secret here. Steps: docs/SETUP.md, 'Connect Gmail'."
+}

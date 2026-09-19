@@ -75,6 +75,7 @@ powershell -File scripts/deploy-web.ps1
 npm --prefix frontend run dev
 # tests
 cd backend; $env:PYTHONPATH="src"; python -m pytest tests
+node frontend/tests/gmailScan.test.ts
 ```
 
 Android later: `cd frontend; npx cap add android; npx cap sync; npx cap open android`.

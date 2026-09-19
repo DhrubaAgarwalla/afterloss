@@ -11,6 +11,7 @@ import { checkAccountNumber, checkDateOrder, checkIfsc, checkPin, RELIGIONS, STA
 import { AssetForm, BANK_CATEGORY, type Category, categoryFor, INVESTMENTS } from "../components/AssetForm";
 import { EMPTY_PERSON, PeopleList, PersonForm } from "../components/People";
 import { Button, Card, Chip, ErrorNote, Field, inputCls } from "../components/ui";
+import { EmailFinder } from "../components/EmailFinder";
 import { FromDocuments, SearchKit } from "./FindPage";
 
 export const STEPS = [
@@ -26,7 +27,7 @@ type StepId = (typeof STEPS)[number]["id"];
 
 export const BANKISH = ["bank_deposit", "term_deposit", "locker", "safe_custody"];
 const NOM_EN: Record<string, string> = { nominee: "Nominee registered", survivor: "Joint (survivor)", none: "No nominee" };
-const SRC_EN: Record<string, string> = { statement: "From statement", passbook: "From passbook", lead: "Found", manual: "Typed" };
+const SRC_EN: Record<string, string> = { statement: "From statement", passbook: "From passbook", lead: "Found", manual: "Typed", email: "From email" };
 const norm = (s: string) => (s || "").toLowerCase().replace(/\b(ltd|limited|bank|the|of|india|co|pvt)\b|[^a-z0-9]/g, "");
 export const LIABILITIES = ["loan", "credit_card"];
 const claimantsOf = (view: any) => (view.people as any[]).filter((p) => p.isClaimant || p.isNominee);
@@ -586,63 +587,6 @@ function BanksStep({ onNext, onBack }: StepProps) {
   );
 }
 
-const EMAIL_SEARCHES = [
-  { en: "Mutual fund statements (CAS)", hi: "म्यूचुअल फंड स्टेटमेंट (सीएएस)", q: 'from:(camsonline.com OR kfintech.com OR mfcentral.com) OR subject:("consolidated account statement")' },
-  { en: "Demat and shares", hi: "डीमैट और शेयर", q: 'from:(nsdl.co.in OR cdslindia.com OR zerodha.com OR groww.in OR upstox.com OR angelone.in) OR subject:("contract note" OR demat)' },
-  { en: "Dividends", hi: "लाभांश", q: "subject:(dividend) OR \"dividend credited\"" },
-  { en: "Insurance premiums and policies", hi: "बीमा प्रीमियम और पॉलिसी", q: 'subject:("premium receipt" OR "policy document" OR "premium due") OR from:(licindia.in)' },
-  { en: "PF, pension and NPS", hi: "पीएफ, पेंशन और एनपीएस", q: 'from:(epfindia.gov.in OR npscra.nsdl.co.in OR proteantech.in) OR subject:(UAN OR PRAN OR "EPF passbook")' },
-  { en: "Fixed and recurring deposits", hi: "सावधि और आवर्ती जमा", q: 'subject:("fixed deposit" OR "term deposit" OR "FD receipt" OR "recurring deposit")' },
-  { en: "Credit cards and loans", hi: "क्रेडिट कार्ड और ऋण", q: 'subject:("credit card statement" OR "loan statement" OR "EMI")' },
-];
-
-function EmailSearch() {
-  const { t, i18n } = useTranslation();
-  const hi = i18n.language === "hi";
-  const [copied, setCopied] = useState("");
-  return (
-    <Card className="space-y-3">
-      <div className="flex items-start gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
-          <Mail className="size-5" />
-        </span>
-        <div>
-          <p className="font-semibold">{t("email.title", "Search their email")}</p>
-          <p className="text-sm text-muted">
-            {t("email.sub", "If the family can open their email, these searches find statements and receipts. They open in Gmail on your phone; nothing is sent to us.")}
-          </p>
-        </div>
-      </div>
-      <ul className="divide-y divide-line">
-        {EMAIL_SEARCHES.map((s) => (
-          <li key={s.q} className="flex items-center gap-2 py-2">
-            <span className="min-w-0 flex-1 text-sm">{hi ? s.hi : s.en}</span>
-            <a className="focus-ring inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50" href={`https://mail.google.com/mail/u/0/#search/${encodeURIComponent(s.q)}`} target="_blank" rel="noreferrer">
-              Gmail <ExternalLink className="size-3" />
-            </a>
-            <button
-              type="button"
-              className="focus-ring inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(s.q);
-                  setCopied(s.q);
-                  setTimeout(() => setCopied(""), 1500);
-                } catch {
-                  /* clipboard blocked */
-                }
-              }}
-            >
-              {copied === s.q ? <Check className="size-3" /> : <Copy className="size-3" />} {t("email.copy", "Copy search")}
-            </button>
-          </li>
-        ))}
-      </ul>
-      <p className="text-xs text-soft">{t("email.found", "Found something? Add it above with the matching tile.")}</p>
-    </Card>
-  );
-}
-
 function InvestmentsStep({ onNext, onBack }: StepProps) {
   const { t, i18n } = useTranslation();
   const hi = i18n.language === "hi";
@@ -681,7 +625,7 @@ function InvestmentsStep({ onNext, onBack }: StepProps) {
           </div>
         </section>
       )}
-      <EmailSearch />
+      <EmailFinder />
       <AssetForm category={cat} asset={editing} onClose={() => { setCat(null); setEditing(null); }} />
       <StepFooter onBack={onBack} busy={busy} error={error} onContinue={() => run()} />
     </div>

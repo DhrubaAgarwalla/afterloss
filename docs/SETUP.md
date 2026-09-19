@@ -85,12 +85,57 @@ RBI's website blocks automated downloads, so please save these yourself. Open ea
 
 I use them to make our auto-filled forms match the official wording, and I record each file's SHA-256 hash so every citation in the app can be checked.
 
+## 8b. Connect Gmail (optional, about 10 minutes)
+
+Lets the family connect **one or more** Gmail accounts (the deceased's, or a family member's who received their
+mail) in step 5, "Investments & policies". The app then searches for CAMS/KFintech statements, demat and broker
+mails, insurance premiums, EPFO/NPS mails, dividends, FDs, cards and loans, and lists what it finds with an "Add"
+button. Until this is set up, the app shows one-tap Gmail searches instead, which need no setup.
+
+How it stays private: it runs **only in the browser** with Google's read-only permission. Emails never reach our
+servers; only the sender, subject and date are read; access lasts about an hour and ends on "Disconnect"; and only
+what the family taps "Add" on is saved.
+
+1. Open https://console.cloud.google.com and sign in with your Google account.
+2. **Create a project**: project picker (top bar) → **New project** → name `AfterLoss` → Create. Select it.
+3. **Turn on the Gmail API**: menu → **APIs & Services → Library** → search "Gmail API" → **Enable**.
+4. **Set up the consent screen**: menu → **Google Auth Platform** (older consoles: APIs & Services → OAuth consent
+   screen) → **Get started**:
+   - App name `AfterLoss`, user support email: yours → Next
+   - Audience: **External** → Next
+   - Contact email: yours → Next → agree → **Create**
+5. **Add the Gmail permission**: Google Auth Platform → **Data access** → **Add or remove scopes** → filter
+   `gmail.readonly` → tick `.../auth/gmail.readonly` ("View your email messages and settings") → Update → **Save**.
+6. **Add test users**: Google Auth Platform → **Audience** → Test users → **Add users** → enter **every Gmail address
+   that will be connected** (yours and the demo accounts; up to 100) → Save. While the app is in "Testing", only these
+   addresses can connect.
+7. **Create the client**: Google Auth Platform → **Clients** → **Create client**:
+   - Application type: **Web application**, name `AfterLoss web`
+   - **Authorized JavaScript origins** → Add URI:
+     - `https://d30k8rjq3ol5ah.cloudfront.net`
+     - `http://localhost:5173`
+   - No redirect URIs needed → **Create**
+8. Copy the **Client ID** (it ends in `.apps.googleusercontent.com`) and send it to me, or paste it into
+   `config/integrations.json` as `"googleClientId"`. It is public by design: it shows in the page source anyway. **Do
+   not** send the client secret; this flow doesn't use one.
+
+I then rebuild the website, and "Connect Gmail (read-only)" appears in step 5. Tap it, pick an account, allow
+"Read your email"; for another account tap **Add another Gmail account** and pick the next one. Results from all
+accounts are merged into one list (for example, "LIC · about 12 emails · latest 3 Jul 2026 · a@gmail.com, b@gmail.com").
+
+What you will see while the app is in Testing:
+- Google shows **"Google hasn't verified this app"**. For a test user that's expected: tap **Continue**.
+- On the permission screen, keep the **"Read your email"** box ticked.
+- Making it public for anyone would need Google's verification of the `gmail.readonly` scope (a security assessment
+  that takes weeks), so for the hackathon it stays in Testing with named test users.
+
 ## 9. Reply to me with
 
 - `setup done, profile afterloss`
 - your GitHub username
 - the email for notifications
 - a monthly budget alert amount (suggest **$20**). I'll create the alert so you never get a surprise bill.
+- (optional) the Google **Client ID** from step 8b, for "Connect Gmail"
 
 ---
 

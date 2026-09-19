@@ -27,13 +27,28 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 - [x] Signed in on the live app in Claude's browser pane (done 18 Sep)
 - [x] Alert email set (dhrubagarwala67@gmail.com): **confirm the SNS subscription email** AWS sent, or the budget / error alarms stay silent
 - [x] Official form formats: used SBI's published blank copy of RBI's standard Annex I-A to I-H (no bank branding)
-- [ ] (Optional) "Connect Gmail" (read-only, runs in the browser) needs a Google Cloud OAuth client ID; until then the app uses one-tap Gmail searches that open in your own Gmail
+- [ ] **Run `aws login --profile afterloss`** again: the session expired on 19 Sep, so deploys stop with a clear message until then
+- [ ] (Optional) **"Connect Gmail"**: follow `docs/SETUP.md` section 8b (about 10 minutes) and send me the Client ID; until then the app shows one-tap Gmail searches
 - [ ] Decide the final product name whenever you're ready (one-line change in `config/brand.json`)
 - [ ] Record the video (script in `docs/DEMO_SCRIPT.md`) and submit before Sunday's deadline
 
 ---
 
 ## Log
+
+### 2026-09-19 06:30 IST: Connect Gmail, with more than one account
+**What**
+- Step 5 ("Investments & policies") can connect **any number of Gmail accounts** (the deceased's, or a family member's who got their mail). For each account the browser runs ~27 read-only searches (CAMS/KFintech/MF Central, NSDL/CDSL and brokers, LIC and private insurers, EPFO, NPS, India Post, dividends, FDs, cards, loans), reads only From / Subject / Date, and merges the results across accounts ("LIC · about 12 emails · latest … · a@gmail.com, b@gmail.com") with an **Add** button.
+- Privacy: Google Identity Services token flow in the browser only; tokens in memory, about 1 hour, revoked on Disconnect; emails never reach our servers; only tapped items are saved (institution, type, count, date).
+- Rate-limit safe: limited concurrency and backoff on Gmail 429s. Classifier covered by `frontend/tests/gmailScan.test.ts`.
+- Hidden until a Google OAuth client ID is set in `config/integrations.json`; setup steps in `docs/SETUP.md` 8b.
+- Deploy scripts now stop with "run aws login" when the AWS session has expired, instead of failing halfway.
+
+**Why**
+- You asked for email connect with more than one Gmail account.
+
+**Left**
+- Your Google Client ID and a fresh `aws login`, then I publish the website and test connect with two accounts.
 
 ### 2026-09-19 04:00 IST: Flow v2: guided setup, claim plans, official-format forms, AI fixed
 **What**

@@ -4,6 +4,12 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $aws = "C:\Program Files\Amazon\AWSCLIV2\aws.exe"
 $sam = "C:\Program Files\Amazon\AWSSAMCLI\bin\sam.cmd"
+# Stop early with a clear message if the `aws login` session has expired (it lasts several hours)
+$ErrorActionPreference = "Continue"  # PowerShell 5.1 would turn the CLI's stderr into a terminating error
+& $aws sts get-caller-identity --profile $Profile --query Account --output text 2>$null | Out-Null
+$sessionOk = $LASTEXITCODE -eq 0
+$ErrorActionPreference = "Stop"
+if (-not $sessionOk) { Write-Output "AWS session expired or missing. Run:  aws login --profile $Profile  then deploy again."; exit 1 }
 # SAM reads plain env credentials; export short-lived ones from the aws login session
 & $aws configure export-credentials --profile $Profile --format powershell | ForEach-Object { Invoke-Expression $_ }
 $env:AWS_REGION = $Region; $env:AWS_DEFAULT_REGION = $Region; $env:SAM_CLI_TELEMETRY = "0"
