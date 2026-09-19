@@ -27,8 +27,9 @@ Newest entry first. After every change: **what** was done, **why**, and **what's
 - [x] Signed in on the live app in Claude's browser pane (done 18 Sep)
 - [x] Alert email set (dhrubagarwala67@gmail.com): **confirm the SNS subscription email** AWS sent, or the budget / error alarms stay silent
 - [x] Official form formats: used SBI's published blank copy of RBI's standard Annex I-A to I-H (no bank branding)
-- [ ] **Run `aws login --profile afterloss`** again: the session expired on 19 Sep, so deploys stop with a clear message until then
-- [ ] (Optional) **"Connect Gmail"**: follow `docs/SETUP.md` section 8b (about 10 minutes) and send me the Client ID; until then the app shows one-tap Gmail searches
+- [x] `aws login` renewed (19 Sep)
+- [x] Google Client ID set (`config/integrations.json`); Google accepts it for the live site origin
+- [ ] **Try "Connect Gmail"** with a Gmail address you added as a test user (step 5 of a case)
 - [ ] Decide the final product name whenever you're ready (one-line change in `config/brand.json`)
 - [ ] Record the video (script in `docs/DEMO_SCRIPT.md`) and submit before Sunday's deadline
 
