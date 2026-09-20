@@ -147,7 +147,7 @@ stateDiagram-v2
    - regex for Aadhaar (12 digits, checksum), PAN, phone numbers, emails and long account numbers
    - Comprehend PII detection
    - known names from the case (deceased, people) are replaced with neutral words ("my father")
-2. `mode=explain` → **OpenAI gpt-oss-120b in ap-south-1** (so explanation requests stay in India; `reasoning_effort: low`, 1,200-token cap for its reasoning) with the route as context: the rule's quote, the threshold, the documents, and **the official form facts** (which annexes must be stamped, who may sign Annex I-E). The prompt forbids claims the context doesn't support; Hindi answers get a small glossary. If the model fails, the rule's own label is shown instead. Chosen on 19 Sep after a head-to-head on our prompts (see LEARNINGS).
+2. `mode=explain` → **OpenAI gpt-oss-120b in ap-south-1** (so explanation requests stay in India; `reasoning_effort: low`, 1,200-token cap for its reasoning) with the route as context: the rule's quote, the threshold, the documents, and **the official form facts** (which annexes must be stamped, who may sign Annex I-E). The prompt forbids claims the context doesn't support; Hindi answers get a small glossary. If the model fails, the rule's own label is shown instead. Chosen after a head-to-head comparison on our prompts.
 3. `mode=web` → Nova 2 Lite (`us.amazon.nova-2-lite-v1:0`, us-east-1) with `toolConfig.tools=[{systemTool:{name:"nova_grounding"}}]` → text plus `citationsContent`. Each citation's domain is checked against an allowlist of official sites and labelled official or unverified. **Citations are always shown** (an AWS usage requirement).
 4. The answer is logged without PII. Answers never change routes, dates or money.
 
