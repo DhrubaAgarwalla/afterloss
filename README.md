@@ -48,16 +48,17 @@ came from, and every quote is checked against a hashed copy of the official sour
 
 ```mermaid
 flowchart LR
-  UI[React PWA · EN/HI] --> CF[CloudFront + S3]
-  UI --> COG[Cognito]
-  UI -- JWT --> API[API Gateway HTTP API]
-  API --> L1[Lambda api] & L2[Lambda scan] & L3[Lambda pack] & L4[Lambda assistant]
-  L1 & L2 & L3 & L4 --> AVP[Verified Permissions · Cedar]
-  L1 & L2 & L3 --> DDB[(DynamoDB single table)]
-  UI -- presigned --> S3[(S3 documents)]
-  L2 --> TX[Textract] & CMP[Comprehend]
-  L1 --> SFN[Step Functions claim clock] --> L5[Lambda clock] --> SES[SES]
-  L4 --> BR[Bedrock · gpt-oss-120b Mumbai + Nova 2 Lite Web Grounding]
+  U["Family<br>React PWA · EN / HI"] --> CF["CloudFront + S3"]
+  U --> COG["Cognito<br>sign-in"]
+  U -- "JWT" --> GW["API Gateway<br>HTTP API"]
+  U -- "presigned" --> S3[("S3<br>documents")]
+  GW --> AVP["Verified Permissions<br>Cedar policies"]
+  GW --> FN["Lambda<br>api · scan · pack · assistant"]
+  FN --> DDB[("DynamoDB<br>single table")]
+  FN --> S3
+  FN --> OCR["Textract + Comprehend<br>OCR and PII masking"]
+  FN --> AI["Bedrock<br>gpt-oss-120b · Nova 2 Lite"]
+  FN --> SFN["Step Functions<br>15-day claim clock"] --> SES["SES<br>reminders"]
 ```
 
 | Layer | Services |

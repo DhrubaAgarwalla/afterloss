@@ -10,46 +10,46 @@ Everything is serverless and defined in **one AWS SAM template** (`backend/templ
 
 ```mermaid
 flowchart LR
-  subgraph Client["Web app (React PWA) → Android via Capacitor"]
-    UI[React + Vite + Tailwind\nEN / HI]
+  subgraph Client["Web app · React PWA · Android via Capacitor"]
+    UI["React + Vite + Tailwind<br>EN / HI"]
   end
 
-  UI -- static files --> CF[CloudFront] --> WEB[(S3: web bucket)]
-  UI -- sign in --> COG[Cognito User Pool]
-  UI -- JWT --> APIGW[API Gateway HTTP API\nJWT authorizer]
+  UI -- "static files" --> CF["CloudFront"] --> WEB[("S3: web bucket")]
+  UI -- "sign in" --> COG["Cognito User Pool"]
+  UI -- "JWT" --> APIGW["API Gateway HTTP API<br>JWT authorizer"]
+  UI -- "presigned PUT/GET" --> DOCS[("S3: docs bucket<br>private, encrypted")]
 
-  APIGW --> API[Lambda: api\ncases, family, assets,\nleads, search kit, clock control]
-  APIGW --> SCAN[Lambda: scan\nstatement → leads\nID masking]
-  APIGW --> PACK[Lambda: pack\nRBI forms → PDF pack]
-  APIGW --> ASK[Lambda: assistant]
+  APIGW --> API["Lambda: api<br>cases, family, assets,<br>leads, search kit, clock"]
+  APIGW --> SCAN["Lambda: scan<br>statement to leads<br>ID masking"]
+  APIGW --> PACK["Lambda: pack<br>RBI forms to PDF pack"]
+  APIGW --> ASK["Lambda: assistant"]
 
-  API --> AVP[Verified Permissions\nCedar policies]
+  API --> AVP["Verified Permissions<br>Cedar policies"]
   SCAN --> AVP
   PACK --> AVP
   ASK --> AVP
 
-  API --> DDB[(DynamoDB\nsingle table)]
+  API --> DDB[("DynamoDB<br>single table")]
   SCAN --> DDB
   PACK --> DDB
-  UI -- presigned PUT/GET --> DOCS[(S3: docs bucket\nprivate, encrypted)]
   SCAN --> DOCS
   PACK --> DOCS
-  SCAN --> TX[Textract\nOCR for scans]
-  SCAN --> CMP[Comprehend\nAadhaar / PAN PII]
+  SCAN --> TX["Textract<br>OCR for scans"]
+  SCAN --> CMP["Comprehend<br>Aadhaar / PAN PII"]
 
-  API -- StartExecution / SendTaskSuccess --> SFN[Step Functions\nClaim clock]
-  SFN --> CLK[Lambda: clock tasks\nschedule, remind,\ncompensation, letters]
+  API -- "StartExecution / SendTaskSuccess" --> SFN["Step Functions<br>claim clock"]
+  SFN --> CLK["Lambda: clock tasks<br>schedule, remind,<br>compensation, letters"]
   CLK --> DDB
   CLK --> DOCS
-  CLK --> SES[SES email]
+  CLK --> SES["SES email"]
 
-  ASK --> PII[PII firewall\nregex + Comprehend]
-  ASK -- explain / classify --> BRL[Bedrock ap-south-1\nNova 2 Lite]
-  PII -- PII-free question --> BRW[Bedrock us-east-1\nNova 2 Lite + nova_grounding]
+  ASK -- "explain" --> BRL["Bedrock ap-south-1<br>gpt-oss-120b"]
+  ASK --> PII["PII firewall<br>regex + Comprehend"]
+  PII -- "PII-free question" --> BRW["Bedrock us-east-1<br>Nova 2 Lite + nova_grounding"]
 
-  subgraph Obs[Observability and cost]
-    CW[CloudWatch logs and alarms]
-    BUD[AWS Budgets alert]
+  subgraph Obs["Observability and cost"]
+    CW["CloudWatch logs and alarms"]
+    BUD["AWS Budgets alert"]
   end
 ```
 
@@ -60,7 +60,7 @@ flowchart LR
 | Host the web app | **S3 + CloudFront (OAC)** | Private bucket, global HTTPS, SPA fallback. Defined in the same SAM stack as everything else. |
 | Sign in | **Cognito User Pool** | Email + password with email verification. The JWT works for the web and for a Capacitor Android app. |
 | API | **API Gateway HTTP API** + JWT authorizer | Cheaper and simpler than REST API; built-in Cognito JWT check. |
-| Business logic | **Lambda (Python 3.12)** | Short request/response work. Four functions split by dependency weight (api / scan / pack / assistant) plus the clock tasks. |
+| Business logic | **Lambda (Python 3.13)** | Short request/response work. Four functions split by dependency weight (api / scan / pack / assistant) plus the clock tasks. |
 | Who can do what | **Amazon Verified Permissions (Cedar)** | Family roles live as policies, not scattered `if`s. `forbid` always beats `permit`, so "helpers never download originals" can't be undone by a later rule. |
 | Data | **DynamoDB (on-demand, single table)** | Every read is "everything for one case" or "my cases" → one partition key plus one GSI; no joins or migrations. |
 | Files | **S3 (docs bucket)** | Private, SSE-S3 encryption, public access blocked. Uploads and downloads go directly through 5-minute presigned URLs, so Lambda never carries large files. |
@@ -94,7 +94,7 @@ sequenceDiagram
   U->>S3: PUT statement.pdf
   U->>SC: POST /cases/{id}/documents/{doc}/process
   SC->>S3: GET file
-  SC->>SC: parse (pdfplumber / CSV; Textract if scanned)
+  SC->>SC: parse with pdfplumber or CSV, Textract if scanned
   SC->>SC: detect leads (patterns + fuzzy dictionary)
   SC->>D: LEAD# items (status=new)
   SC-->>U: leads with evidence lines
