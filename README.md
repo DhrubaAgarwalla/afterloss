@@ -200,6 +200,8 @@ The complete, machine-readable list of citations, with the paragraph quoted for 
 - The sample bank statement, passbook and identity document are **synthetic**; they contain no real
   person's data.
 
+Full attribution is in [NOTICE.md](NOTICE.md).
+
 ## Acknowledgements
 
 Built during the WeMakeDevs × AWS **First Commit** hackathon (Bharat Builds Tour), 17–20 September 2026.

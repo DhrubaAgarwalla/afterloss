@@ -19,16 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Third-party materials included in this repository are not covered by the MIT
-license above:
-
-- `sources/rbi-2025-deceased-claims/` contains the Reserve Bank of India's
-  notification text and a published copy of the standard Annex I-A to I-H claim
-  forms issued by State Bank of India. They remain the property of their
-  respective issuers and are included only so that the quotations and form
-  layouts used by this software can be verified.
-- `backend/src/afterloss/forms/templates/rbi_annex_forms.pdf` is the same blank
-  form document, used unmodified as the printing template.
