@@ -38,3 +38,14 @@ frontend/android/.gradle/
 # copied from config/brand.json at deploy time
 backend/src/afterloss/brand.json
 backend/stack-outputs.json
+
+# working notes kept locally: planning, progress log, demo script, hackathon checklist
+docs/PROGRESS.md
+docs/PRODUCT_REVIEW_AND_EMAIL_AI_PLAN.md
+docs/DEMO_SCRIPT.md
+docs/HACKATHON.md
+docs/PRD.md
+docs/FLOW.md
+docs/LEARNINGS.md
+docs/SETUP.md
+.claude/

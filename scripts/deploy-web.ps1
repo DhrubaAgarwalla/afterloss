@@ -2,7 +2,9 @@
 param([string]$Profile = "afterloss", [string]$Region = "ap-south-1", [string]$Stack = "afterloss-web")
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$aws = "C:\Program Files\Amazon\AWSCLIV2\aws.exe"
+$found = Get-Command "aws" -ErrorAction SilentlyContinue
+$aws = if ($found) { $found.Source } else { "C:\Program Files\Amazon\AWSCLIV2\aws.exe" }
+if (-not (Test-Path $aws)) { Write-Output "The AWS CLI was not found. Install it or add it to PATH (see docs/DEPLOYMENT.md)."; exit 1 }
 # Stop early with a clear message if the `aws login` session has expired (it lasts several hours)
 $ErrorActionPreference = "Continue"  # PowerShell 5.1 would turn the CLI's stderr into a terminating error
 & $aws sts get-caller-identity --profile $Profile --query Account --output text 2>$null | Out-Null

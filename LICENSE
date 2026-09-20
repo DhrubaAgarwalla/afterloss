@@ -1,0 +1,34 @@
+MIT License
+
+Copyright (c) 2026 Dhruba Agarwalla
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+Third-party materials included in this repository are not covered by the MIT
+license above:
+
+- `sources/rbi-2025-deceased-claims/` contains the Reserve Bank of India's
+  notification text and a published copy of the standard Annex I-A to I-H claim
+  forms issued by State Bank of India. They remain the property of their
+  respective issuers and are included only so that the quotations and form
+  layouts used by this software can be verified.
+- `backend/src/afterloss/forms/templates/rbi_annex_forms.pdf` is the same blank
+  form document, used unmodified as the printing template.

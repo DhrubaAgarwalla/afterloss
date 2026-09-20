@@ -232,13 +232,13 @@ backend/  sam build  →  sam deploy (stack: afterloss, region ap-south-1)
 frontend/ npm run build → aws s3 sync dist s3://<web-bucket> → CloudFront invalidation
 ```
 
-Python dependencies go into a Lambda layer built with `pip install --platform manylinux2014_x86_64 --only-binary=:all:`, so builds on Windows produce Linux-compatible wheels without Docker. Stack outputs (API URL, user pool IDs, bucket names) are written to `frontend/.env.production` by `scripts/deploy.ps1`.
+Python dependencies go into a Lambda layer built with `pip install --platform manylinux2014_x86_64 --only-binary=:all:`, so builds on Windows produce Linux-compatible wheels without Docker. Stack outputs (API URL, user pool IDs, bucket names) are written to `backend/stack-outputs.json` by `scripts/deploy-backend.ps1`, and the frontend reads the same values from `frontend/.env.production` (see [Deployment](DEPLOYMENT.md)).
 
-## 12. Cost (demo scale, whole hackathon)
+## 12. Cost at demonstration scale
 
-Lambda, API Gateway, DynamoDB, Step Functions, Cognito and CloudFront stay within free tiers or cost cents. Textract, Comprehend and Bedrock are pay-per-use at a few cents. An **AWS Budgets alert at $20/month** emails us before anything surprising. Expected total: **under $5**.
+Lambda, API Gateway, DynamoDB, Step Functions, Cognito and CloudFront stay within free tiers or cost cents. Textract, Comprehend and Bedrock are pay-per-use at a few cents. An **AWS Budgets alert at $20/month** warns before anything surprising. Expected total for a demonstration deployment: **under $5**.
 
-## 13. Build It (local, open-source) mapping
+## 13. Running on open-source equivalents
 
 | Cloud | Local |
 |---|---|
