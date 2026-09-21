@@ -8,7 +8,11 @@ export const config = {
   region: (import.meta.env.VITE_REGION as string | undefined) ?? "ap-south-1",
   // Public OAuth client ID for "Connect Gmail" (config/integrations.json); empty = the feature stays hidden
   googleClientId: ((import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) || integrations.googleClientId || "").trim(),
+  // Shared sandbox account behind "Try the demo". Public by design; it only ever holds invented data.
+  demo: { email: (integrations.demo?.email ?? "").trim(), password: integrations.demo?.password ?? "" },
 };
+
+export const demoAvailable = () => Boolean(config.demo.email && config.demo.password);
 
 export { brand };
 

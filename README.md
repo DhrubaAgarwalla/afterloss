@@ -6,7 +6,8 @@ A bilingual (English / हिंदी) web application that helps an Indian fam
 financial assets, produce the official claim paperwork, and hold each institution to the deadlines the
 regulator already gives them.
 
-**Live application:** https://d30k8rjq3ol5ah.cloudfront.net
+**Live application:** https://d30k8rjq3ol5ah.cloudfront.net — choose **"Open the demo, no sign-up"** to land in a
+ready-made sample case (invented family, accounts and findings). New cases can be opened from inside it.
 **Documentation:** [Architecture](docs/ARCHITECTURE.md) · [Deployment](docs/DEPLOYMENT.md)
 
 ---

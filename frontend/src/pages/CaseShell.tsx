@@ -100,6 +100,11 @@ function Shell({ email, onSignOut }: { email: string; onSignOut: () => void }) {
               <Chip tone={role === "helper" ? "amber" : "brand"}>{t(`role.${role}`, { defaultValue: role })}</Chip>
             </span>
           )}
+          {view?.case?.demo && (
+            <span className="hidden sm:inline-flex">
+              <Chip tone="amber">{t("cases.sample", "Sample case")}</Chip>
+            </span>
+          )}
           {view?.case?.secondsPerDay < 86400 && (
             <span className="hidden lg:inline-flex">
               <Chip tone="amber">{t("cases.demo", "Demo speed")}</Chip>
@@ -197,6 +202,7 @@ function Shell({ email, onSignOut }: { email: string; onSignOut: () => void }) {
                 <p className="truncate text-xs text-soft">{email}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {role && <Chip tone={role === "helper" ? "amber" : "brand"}>{t(`role.${role}`, { defaultValue: role })}</Chip>}
+                  {view?.case?.demo && <Chip tone="amber">{t("cases.sample", "Sample case")}</Chip>}
                   {view?.case?.secondsPerDay < 86400 && <Chip tone="amber">{t("cases.demo", "Demo speed")}</Chip>}
                 </div>
               </div>

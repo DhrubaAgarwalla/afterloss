@@ -164,6 +164,14 @@ def answer(event):
     return 200, svc.answer_clock(store, cd, params(event)["assetId"], body_of(event), email, workflow.send_answer)
 
 
+def demo_case(event):
+    """Create the ready-made sample case for whoever is signed in (used by 'Try the demo')."""
+    from afterloss.app.demo import seed_case
+
+    store, _ = deps()
+    return 201, seed_case(store, email_of(event))
+
+
 def rules_info(event):
     from afterloss.rules import load_rulebook
 
@@ -190,6 +198,7 @@ ROUTES = {
     "GET /rules": rules_info,
     "GET /guides": guides_info,
     "GET /me/cases": list_cases,
+    "POST /demo/case": demo_case,
     "POST /cases": create_case,
     "GET /cases/{caseId}": get_case,
     "PATCH /cases/{caseId}": patch_case,

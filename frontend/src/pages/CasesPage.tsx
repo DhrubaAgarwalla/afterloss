@@ -63,6 +63,7 @@ export default function CasesPage({ email, onSignOut }: { email: string; onSignO
                 <div className="mt-2 flex flex-wrap gap-2">
                   {c.dod && <Chip>{t("cases.died", "Died")} {c.dod}</Chip>}
                   <Chip tone="brand">{t(`role.${c.myRole}`, { defaultValue: c.myRole })}</Chip>
+                  {c.demo && <Chip tone="amber">{t("cases.sample", "Sample case")}</Chip>}
                   {c.secondsPerDay < 86400 && <Chip tone="amber">{t("cases.demo", "Demo speed")}</Chip>}
                 </div>
               </Card>

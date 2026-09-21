@@ -310,6 +310,7 @@ Resources:
         Rules: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /rules, Method: GET, Auth: {Authorizer: NONE}}}
         Guides: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /guides, Method: GET, Auth: {Authorizer: NONE}}}
         MyCases: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /me/cases, Method: GET}}
+        DemoCase: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /demo/case, Method: POST}}
         CreateCase: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: /cases, Method: POST}}
         GetCase: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/cases/{caseId}", Method: GET}}
         PatchCase: {Type: HttpApi, Properties: {ApiId: !Ref HttpApi, Path: "/cases/{caseId}", Method: PATCH}}

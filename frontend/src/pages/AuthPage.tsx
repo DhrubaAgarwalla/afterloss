@@ -1,10 +1,11 @@
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileSearch, FileSignature, Timer } from "lucide-react";
+import { FileSearch, FileSignature, PlayCircle, Timer } from "lucide-react";
 import { Button, ErrorNote, Field, inputCls } from "../components/ui";
 import { LangToggle } from "../components/LangToggle";
-import { brand } from "../lib/config";
-import { currentEmail, doConfirm, doResend, doSignIn, doSignUp } from "../lib/auth";
+import { api } from "../lib/api";
+import { brand, config, demoAvailable } from "../lib/config";
+import { currentEmail, doConfirm, doResend, doSignIn, doSignOut, doSignUp } from "../lib/auth";
 
 export default function AuthPage({ onSignedIn }: { onSignedIn: (email: string) => void }) {
   const { t, i18n } = useTranslation();
@@ -24,6 +25,25 @@ export default function AuthPage({ onSignedIn }: { onSignedIn: (email: string) =
     }
     const e = await currentEmail();
     if (e) onSignedIn(e);
+  }
+
+  // Signs in to the shared sandbox account and lands on a freshly built sample case.
+  async function startDemo() {
+    setBusy(true);
+    setError(null);
+    try {
+      try {
+        await doSignOut();
+      } catch {
+        /* nobody was signed in */
+      }
+      await doSignIn(config.demo.email, config.demo.password);
+      const { caseId } = await api<{ caseId: string }>("POST", "/demo/case");
+      window.location.assign(`/cases/${caseId}`);
+    } catch (e) {
+      setError(e);
+      setBusy(false);
+    }
   }
 
   async function submit(ev: FormEvent) {
@@ -133,6 +153,24 @@ export default function AuthPage({ onSignedIn }: { onSignedIn: (email: string) =
             <Button type="submit" size="lg" className="w-full" loading={busy}>
               {mode === "in" ? t("auth.signIn", "Sign in") : mode === "up" ? t("auth.create", "Create account") : t("auth.verify", "Verify and continue")}
             </Button>
+            {demoAvailable() && (
+              <div className="space-y-2 border-t border-line pt-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  className="w-full"
+                  loading={busy}
+                  icon={<PlayCircle className="size-5" />}
+                  onClick={startDemo}
+                >
+                  {t("auth.demo", "Open the demo, no sign-up")}
+                </Button>
+                <p className="text-center text-xs text-soft">
+                  {t("auth.demoHint", "A sample case with an invented family, their accounts and findings. You can also open a new case inside it.")}
+                </p>
+              </div>
+            )}
             <p className="text-center text-xs text-soft">{t("auth.privacy", "Your documents stay private to your family. Aadhaar numbers are masked automatically.")}</p>
           </div>
         </form>

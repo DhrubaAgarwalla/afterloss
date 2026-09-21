@@ -64,6 +64,25 @@ python scripts/e2e.py                                       # live checks agains
 `e2e.py` uses throwaway `example.com` users created in the deployed Cognito pool and reads its endpoints
 from `backend/stack-outputs.json`.
 
+## Optional: the demo account
+
+"Open the demo, no sign-up" signs in to a shared sandbox account and calls `POST /demo/case`, which builds a
+fresh sample case (synthetic family, four claims and the findings from a sample statement). Create that
+account once in the deployed user pool:
+
+```powershell
+$pool = (aws cloudformation describe-stacks --stack-name afterloss --profile afterloss --region ap-south-1 `
+  --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" --output text)
+aws cognito-idp admin-create-user --user-pool-id $pool --username demo@afterloss.example `
+  --user-attributes Name=email,Value=demo@afterloss.example Name=email_verified,Value=true `
+  --message-action SUPPRESS --profile afterloss --region ap-south-1
+aws cognito-idp admin-set-user-password --user-pool-id $pool --username demo@afterloss.example `
+  --password "SampleCase2026" --permanent --profile afterloss --region ap-south-1
+```
+
+The address and password live in `config/integrations.json` and are public on purpose. Remove that `demo`
+block to hide the button; the sample case itself stays available to any signed-in user through the endpoint.
+
 ## Optional: Gmail discovery
 
 Email discovery is hidden until a Google OAuth client ID is present in `config/integrations.json`. The
